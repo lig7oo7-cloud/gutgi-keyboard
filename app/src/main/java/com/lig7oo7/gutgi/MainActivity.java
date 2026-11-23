@@ -89,6 +89,44 @@ public class MainActivity extends Activity {
         });
         box.addView(save);
 
+        TextView aiTitle = new TextView(this);
+        aiTitle.setText("\n😄 아재개그 답장 (Gemini API)");
+        aiTitle.setTextSize(17);
+        aiTitle.setTextColor(Color.BLACK);
+        box.addView(aiTitle);
+        TextView aiNote = new TextView(this);
+        aiNote.setTextSize(13);
+        aiNote.setTextColor(0xFF607D8B);
+        aiNote.setText("Google AI Studio(aistudio.google.com)에서 발급한 API 키를 붙여넣으세요.\n" +
+                "키가 없거나 무료 사용량이 끝나면 Gemini 앱(구독)으로 보내는 방식으로 이어서 쓸 수 있어요.\n" +
+                "버튼을 눌렀을 때 캡처한 채팅 화면만 전송되고, 키보드 입력 내용은 보내지 않아요.");
+        box.addView(aiNote);
+        final android.content.SharedPreferences sp = AjaeApi.prefs(this);
+        final EditText keyIn = new EditText(this);
+        keyIn.setHint("API 키");
+        keyIn.setSingleLine(true);
+        keyIn.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        keyIn.setText(sp.getString("geminiKey", ""));
+        box.addView(keyIn);
+        final EditText modelIn = new EditText(this);
+        modelIn.setHint("모델 (비우면 " + AjaeApi.DEFAULT_MODEL + ")");
+        modelIn.setSingleLine(true);
+        modelIn.setText(sp.getString("geminiModel", ""));
+        box.addView(modelIn);
+        final android.widget.CheckBox spicy = new android.widget.CheckBox(this);
+        spicy.setText("야한 농담(19금 말장난) 포함");
+        spicy.setChecked(sp.getBoolean("spicy", true));
+        box.addView(spicy);
+        Button saveAi = new Button(this);
+        saveAi.setText("AI 설정 저장");
+        saveAi.setOnClickListener(v -> {
+            sp.edit().putString("geminiKey", keyIn.getText().toString().trim())
+                    .putString("geminiModel", modelIn.getText().toString().trim())
+                    .putBoolean("spicy", spicy.isChecked()).apply();
+            android.widget.Toast.makeText(this, "저장했어요", android.widget.Toast.LENGTH_SHORT).show();
+        });
+        box.addView(saveAi);
+
         Button unhide = new Button(this);
         unhide.setText("🎯 상황어: 숨긴 단어 복구 + 배치 초기화 (고정은 유지)");
         unhide.setOnClickListener(v -> {

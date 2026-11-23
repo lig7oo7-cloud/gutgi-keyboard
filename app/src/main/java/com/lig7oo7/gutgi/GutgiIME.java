@@ -99,6 +99,15 @@ public class GutgiIME extends InputMethodService implements KeyboardView.Listene
     }
 
     @Override
+    public void sendShotToGeminiApp() {
+        AjaeBus.clear();
+        Intent i = new Intent(this, ShotActivity.class);
+        i.putExtra("sendOnly", true);
+        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_NO_ANIMATION);
+        startActivity(i);
+    }
+
+    @Override
     public void startAjae() {
         commitComposing();
         Intent i = new Intent(this, ShotActivity.class);
@@ -149,7 +158,8 @@ public class GutgiIME extends InputMethodService implements KeyboardView.Listene
         shift = 0;
         if (panels != null) {
             panels.reset();
-            if (takeAjaePending()) panels.openHistory();
+            if (AjaeBus.shouldShow()) panels.openAjae();
+            else if (takeAjaePending()) panels.openHistory();
         }
         lastWord = null;
         int cls = info.inputType & InputType.TYPE_MASK_CLASS;

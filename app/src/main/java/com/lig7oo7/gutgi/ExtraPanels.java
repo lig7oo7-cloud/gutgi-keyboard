@@ -30,6 +30,7 @@ public class ExtraPanels {
         CharSequence selectedText();
         void replaceWord(String word);
         void startAjae();
+        void sendShotToGeminiApp();
         void openApp(String extra);
     }
 
@@ -116,6 +117,51 @@ public class ExtraPanels {
     /** 입력창이 바뀌면 키보드로 돌아오기 */
     public void reset() { showKeyboard(); }
 
+    /** 키보드 안 답장 패널 (딩굴식) */
+    public void openAjae() { showPanel(4, ajaePanel()); }
+
+    private View ajaePanel() {
+        LinearLayout col = column();
+        LinearLayout head = new LinearLayout(ctx);
+        head.setGravity(Gravity.CENTER_VERTICAL);
+        TextView title = new TextView(ctx);
+        title.setText("답장을 골라 주세요");
+        title.setTextSize(16);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        title.setTextColor(TEXT);
+        title.setPadding(px(8), px(6), px(8), px(6));
+        head.addView(title, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        TextView again = chip("↻ 다시", 13);
+        again.setBackground(round(0xFFD3D7DC));
+        again.setOnClickListener(v -> { AjaeBus.clear(); showKeyboard(); host.startAjae(); });
+        head.addView(again, new LinearLayout.LayoutParams(px(64), px(32)));
+        TextView close = chip("✕", 16);
+        close.setBackground(null);
+        close.setOnClickListener(v -> { AjaeBus.clear(); showKeyboard(); });
+        head.addView(close, new LinearLayout.LayoutParams(px(44), px(32)));
+        col.addView(head);
+
+        AjaeApi.Result r = AjaeBus.result;
+        if (AjaeBus.state == AjaeBus.LOADING) {
+            col.addView(note("아재력 충전 중… 답장 만드는 중이에요"));
+            AjaeBus.listener = () -> { if (open == 4) showPanel(4, ajaePanel()); };
+        } else if (r != null && !r.replies.isEmpty()) {
+            for (String[] rep : r.replies) {
+                final String text = rep[1];
+                View it = item((rep[0].isEmpty() ? "" : "[" + rep[0] + "] ") + text,
+                        v -> { host.insertText(text); AjaeBus.clear(); showKeyboard(); }, null);
+                col.addView(it);
+            }
+        } else {
+            col.addView(note("⚠ " + (r != null && r.error != null ? r.error : "답을 받지 못했어요")));
+            if (r == null || r.quotaOrKey) {
+                col.addView(buttonRow(new String[]{"Gemini 앱으로 보내기 (구독)"}, new View.OnClickListener[]{
+                        v -> host.sendShotToGeminiApp()}));
+            }
+        }
+        return scroll(col);
+    }
+
     /** Gemini에서 복사해 온 답을 바로 고를 수 있게 기록 패널 열기 */
     public void openHistory() { showPanel(1, clipboardPanel()); }
 
@@ -153,6 +199,7 @@ public class ExtraPanels {
 
     private void showKeyboard() {
         open = -1;
+        AjaeBus.listener = null;
         content.removeAllViews();
         content.addView(keyboard);
         for (View t : tabs) t.setBackground(round(CHIP));

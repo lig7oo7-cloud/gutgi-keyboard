@@ -28,6 +28,12 @@ public class ShotActivity extends Activity {
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
+        if (getIntent().getBooleanExtra("sendOnly", false)) {
+            // 무료 사용량이 끝났을 때: 이미 찍어둔 화면을 Gemini 앱으로
+            sendToGemini();
+            finish();
+            return;
+        }
         MediaProjectionManager mpm = (MediaProjectionManager) getSystemService(MEDIA_PROJECTION_SERVICE);
         startActivityForResult(mpm.createScreenCaptureIntent(), REQ);
     }
@@ -45,8 +51,10 @@ public class ShotActivity extends Activity {
             ShotService.callback = null;
             if (file == null) {
                 Toast.makeText(this, "화면을 캡처하지 못했어요. 다시 눌러 주세요", Toast.LENGTH_SHORT).show();
+            } else if (!AjaeApi.key(this).isEmpty()) {
+                AjaeBus.start(this, file);   // 키보드 안에서 바로 답장 받기
             } else {
-                sendToGemini();
+                sendToGemini();               // 키가 없으면 Gemini 앱 방식
             }
             finish();
         });
@@ -58,7 +66,7 @@ public class ShotActivity extends Activity {
         startForegroundService(svc);
     }
 
-    private void sendToGemini() {
+    void sendToGemini() {
         // Gemini가 같이 보낸 글을 무시하는 경우를 대비해 요청문도 복사해 둔다 (기록에는 안 남김)
         try {
             ClipboardManager cm = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
