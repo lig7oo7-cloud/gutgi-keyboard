@@ -109,7 +109,7 @@ public class MainActivity extends Activity {
         keyIn.setText(sp.getString("geminiKey", ""));
         box.addView(keyIn);
         final EditText modelIn = new EditText(this);
-        modelIn.setHint("모델 (비우면 " + AjaeApi.DEFAULT_MODEL + ")");
+        modelIn.setHint("모델 (비우면 " + AjaeApi.DEFAULT_MODEL + " / 더 웃기게: gemini-3.8-flash)");
         modelIn.setSingleLine(true);
         modelIn.setText(sp.getString("geminiModel", ""));
         box.addView(modelIn);
@@ -117,12 +117,29 @@ public class MainActivity extends Activity {
         spicy.setText("야한 농담(19금 말장난) 포함");
         spicy.setChecked(sp.getBoolean("spicy", true));
         box.addView(spicy);
+        TextView roomLbl = new TextView(this);
+        roomLbl.setText("우리 단톡방 설명 (분위기·은어)");
+        box.addView(roomLbl);
+        final EditText roomIn = new EditText(this);
+        roomIn.setMinLines(3);
+        roomIn.setText(AjaeApi.room(this));
+        box.addView(roomIn);
+        TextView exLbl = new TextView(this);
+        exLbl.setText("웃겼던 예시 (한 줄에 '상대 말 → 내 답')  ← 많이 적을수록 내 스타일로 나와요");
+        box.addView(exLbl);
+        final EditText exIn = new EditText(this);
+        exIn.setMinLines(4);
+        exIn.setText(AjaeApi.examples(this));
+        box.addView(exIn);
+
         Button saveAi = new Button(this);
         saveAi.setText("AI 설정 저장");
         saveAi.setOnClickListener(v -> {
             sp.edit().putString("geminiKey", keyIn.getText().toString().trim())
                     .putString("geminiModel", modelIn.getText().toString().trim())
-                    .putBoolean("spicy", spicy.isChecked()).apply();
+                    .putBoolean("spicy", spicy.isChecked())
+                    .putString("room", roomIn.getText().toString().trim())
+                    .putString("examples", exIn.getText().toString().trim()).apply();
             android.widget.Toast.makeText(this, "저장했어요", android.widget.Toast.LENGTH_SHORT).show();
         });
         box.addView(saveAi);

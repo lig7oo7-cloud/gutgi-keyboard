@@ -110,6 +110,32 @@ public class GutgiIME extends InputMethodService implements KeyboardView.Listene
     @Override
     public void startAjae() {
         commitComposing();
+        if (ShotService.alive && panels != null) {
+            // 화면 공유 세션이 살아 있으면 동의 창 없이 바로 찍는다 (키보드 위쪽까지만)
+            AjaeBus.capturing();
+            panels.openAjae();
+            int[] loc = new int[2];
+            panels.root().getLocationOnScreen(loc);
+            ShotService.callback = f -> new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+                if (f == null) AjaeBus.failed("화면을 찍지 못했어요. ↻ 다시 눌러 주세요");
+                else AjaeBus.start(this, f);
+            });
+            Intent cap = new Intent(this, ShotService.class)
+                    .setAction(ShotService.ACTION_CAPTURE)
+                    .putExtra("cropBottom", loc[1]);
+            try {
+                startService(cap);
+            } catch (Exception e) {
+                ShotService.callback = null;
+                AjaeBus.clear();
+                launchShotActivity();
+            }
+            return;
+        }
+        launchShotActivity();
+    }
+
+    private void launchShotActivity() {
         Intent i = new Intent(this, ShotActivity.class);
         i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_NO_ANIMATION);
         startActivity(i);

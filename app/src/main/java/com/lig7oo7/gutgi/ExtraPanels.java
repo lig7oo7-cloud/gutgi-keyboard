@@ -141,20 +141,21 @@ public class ExtraPanels {
         head.addView(close, new LinearLayout.LayoutParams(px(44), px(32)));
         col.addView(head);
 
-        AjaeApi.Result r = AjaeBus.result;
-        if (AjaeBus.state == AjaeBus.LOADING) {
-            col.addView(note("아재력 충전 중… 답장 만드는 중이에요"));
-            AjaeBus.listener = () -> { if (open == 4) showPanel(4, ajaePanel()); };
-        } else if (r != null && !r.replies.isEmpty()) {
-            for (String[] rep : r.replies) {
-                final String text = rep[1];
-                View it = item((rep[0].isEmpty() ? "" : "[" + rep[0] + "] ") + text,
-                        v -> { host.insertText(text); AjaeBus.clear(); showKeyboard(); }, null);
-                col.addView(it);
-            }
-        } else {
-            col.addView(note("⚠ " + (r != null && r.error != null ? r.error : "답을 받지 못했어요")));
-            if (r == null || r.quotaOrKey) {
+        AjaeBus.listener = () -> { if (open == 4) showPanel(4, ajaePanel()); };
+        int st = AjaeBus.state;
+        if (st == AjaeBus.CAPTURING) {
+            col.addView(note("📸 화면 찍는 중…"));
+        }
+        for (String[] rep : AjaeBus.replies) {
+            final String text = rep[1];
+            col.addView(item((rep[0].isEmpty() ? "" : "[" + rep[0] + "] ") + text,
+                    v -> { host.insertText(text); AjaeBus.clear(); showKeyboard(); }, null));
+        }
+        if (st == AjaeBus.LOADING) {
+            col.addView(note(AjaeBus.replies.isEmpty() ? "🤔 드립 짜는 중…" : "더 만드는 중…"));
+        } else if (st == AjaeBus.DONE && AjaeBus.replies.isEmpty()) {
+            col.addView(note("⚠ " + (AjaeBus.error != null ? AjaeBus.error : "답을 받지 못했어요")));
+            if (AjaeBus.keyProblem) {
                 col.addView(buttonRow(new String[]{"API 키 · 모델 설정 열기"}, new View.OnClickListener[]{
                         v -> { AjaeBus.clear(); host.openApp("aisettings"); }}));
             }
