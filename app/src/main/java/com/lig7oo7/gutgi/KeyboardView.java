@@ -52,7 +52,8 @@ public class KeyboardView extends View {
         KeyDef key;
         float x0, y0, lastX, maxD;
         String dir = "";
-        boolean spaceDrag;
+        boolean spaceDrag, selStarted;
+        int selSteps;
     }
 
     public KeyboardView(Context c) {
@@ -306,7 +307,7 @@ public class KeyboardView extends View {
 
     private void release(Ptr p) {
         if (p.key.repeat) { stopRepeat(); return; }
-        if (p.key.space && p.spaceDrag) return;
+        if ((p.key.space || p.key.selDrag) && p.spaceDrag) return;
         emit(p.key.outFor(p.dir));
     }
 
@@ -346,6 +347,17 @@ public class KeyboardView extends View {
                         if (!p.spaceDrag && Math.abs(x - p.x0) < 18 * dp) continue;
                         while (x - p.lastX > step) { emit("@RIGHT"); p.lastX += step; p.spaceDrag = true; }
                         while (p.lastX - x > step) { emit("@LEFT"); p.lastX -= step; p.spaceDrag = true; }
+                        continue;
+                    }
+                    if (p.key.selDrag) {
+                        // sel 키: 왼쪽으로 끌수록 커서 앞 글자를 더 많이 선택
+                        float step = 14 * dp;
+                        if (!p.selStarted && Math.abs(x - p.x0) < 16 * dp) continue;
+                        if (!p.selStarted) { p.selStarted = true; p.spaceDrag = true; emit("@SELBEGIN"); }
+                        int want = (int) Math.max(0, (p.x0 - x) / step);
+                        while (p.selSteps < want) { emit("@SELMORE"); p.selSteps++; }
+                        while (p.selSteps > want) { emit("@SELLESS"); p.selSteps--; }
+                        invalidate();
                         continue;
                     }
                     if (p.key.repeat) continue;

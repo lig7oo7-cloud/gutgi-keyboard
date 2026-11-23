@@ -1,5 +1,7 @@
 package com.lig7oo7.gutgi;
 
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.inputmethodservice.InputMethodService;
 import android.text.InputType;
 import android.view.KeyEvent;
@@ -11,7 +13,7 @@ import android.view.inputmethod.InputConnection;
 
 import java.util.List;
 
-public class GutgiIME extends InputMethodService implements KeyboardView.Listener {
+public class GutgiIME extends InputMethodService implements KeyboardView.Listener, ExtraPanels.Host {
 
     private static final int HAN = 0, ENG = 1, SYM = 2;
 
@@ -21,6 +23,33 @@ public class GutgiIME extends InputMethodService implements KeyboardView.Listene
     private int mode = HAN, langMode = HAN;
     private int shift; // 0 끔, 1 한 번, 2 고정
     private long lastShiftTap;
+    private ExtraPanels panels;
+    private ClipboardManager clipboard;
+    private int selAnchor = -1, selCount;
+    private boolean selFallback;
+
+    private final ClipboardManager.OnPrimaryClipChangedListener clipListener = () -> {
+        try {
+            ClipData cd = clipboard.getPrimaryClip();
+            if (cd != null && cd.getItemCount() > 0) {
+                CharSequence t = cd.getItemAt(0).coerceToText(this);
+                if (t != null) Store.addClip(this, t.toString());
+            }
+        } catch (Exception ignored) { }
+    };
+
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        clipboard = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+        if (clipboard != null) clipboard.addPrimaryClipChangedListener(clipListener);
+    }
+
+    @Override
+    public void onDestroy() {
+        if (clipboard != null) clipboard.removePrimaryClipChangedListener(clipListener);
+        super.onDestroy();
+    }
 
     @Override
     public View onCreateInputView() {
@@ -29,8 +58,32 @@ public class GutgiIME extends InputMethodService implements KeyboardView.Listene
         symRows = Layouts.symbols();
         view = new KeyboardView(this);
         view.setListener(this);
+        panels = new ExtraPanels(this, this, view);
         applyLayout();
-        return view;
+        return panels.root();
+    }
+
+    // ExtraPanels.Host
+    @Override
+    public void insertText(String text) {
+        InputConnection ic = getCurrentInputConnection();
+        if (ic == null) return;
+        commitComposing();
+        ic.commitText(text, 1);
+    }
+
+    @Override
+    public void contextAction(int id) {
+        InputConnection ic = getCurrentInputConnection();
+        if (ic == null) return;
+        commitComposing();
+        ic.performContextMenuAction(id);
+    }
+
+    @Override
+    public CharSequence selectedText() {
+        InputConnection ic = getCurrentInputConnection();
+        return ic == null ? null : ic.getSelectedText(0);
     }
 
     @Override
@@ -41,6 +94,7 @@ public class GutgiIME extends InputMethodService implements KeyboardView.Listene
         super.onStartInputView(info, restarting);
         hc.reset();
         shift = 0;
+        if (panels != null) panels.reset();
         int cls = info.inputType & InputType.TYPE_MASK_CLASS;
         int var = info.inputType & InputType.TYPE_MASK_VARIATION;
         if (cls == InputType.TYPE_CLASS_NUMBER || cls == InputType.TYPE_CLASS_PHONE
@@ -111,6 +165,33 @@ public class GutgiIME extends InputMethodService implements KeyboardView.Listene
             case "@STROKE":
                 if (mode == HAN && hc.addStroke()) ic.setComposingText(hc.current(), 1);
                 return;
+            case "@SELBEGIN": {
+                // sel 키를 왼쪽으로 끌면 커서 앞 글자를 한 칸씩 선택
+                commitComposing();
+                selCount = 0;
+                selFallback = false;
+                ExtractedText et = ic.getExtractedText(new ExtractedTextRequest(), 0);
+                if (et != null && et.text != null) {
+                    selAnchor = et.startOffset + Math.max(et.selectionStart, et.selectionEnd);
+                } else {
+                    selAnchor = -1;
+                    selFallback = true;
+                }
+                return;
+            }
+            case "@SELMORE":
+            case "@SELLESS": {
+                boolean more = t.equals("@SELMORE");
+                if (selFallback) {
+                    if (more) { shiftArrow(ic, KeyEvent.KEYCODE_DPAD_LEFT); selCount++; }
+                    else if (selCount > 0) { shiftArrow(ic, KeyEvent.KEYCODE_DPAD_RIGHT); selCount--; }
+                    return;
+                }
+                if (selAnchor < 0) return;
+                selCount = more ? Math.min(selCount + 1, selAnchor) : Math.max(0, selCount - 1);
+                ic.setSelection(selAnchor - selCount, selAnchor);
+                return;
+            }
             case "@SELALL":
                 commitComposing();
                 ic.performContextMenuAction(android.R.id.selectAll);
@@ -195,6 +276,12 @@ public class GutgiIME extends InputMethodService implements KeyboardView.Listene
             if (shift == 1) { shift = 0; view.setShift(0); }
         }
         ic.commitText(text, 1);
+    }
+
+    private void shiftArrow(InputConnection ic, int code) {
+        long now = android.os.SystemClock.uptimeMillis();
+        ic.sendKeyEvent(new KeyEvent(now, now, KeyEvent.ACTION_DOWN, code, 0, KeyEvent.META_SHIFT_ON));
+        ic.sendKeyEvent(new KeyEvent(now, now, KeyEvent.ACTION_UP, code, 0, KeyEvent.META_SHIFT_ON));
     }
 
     private void handleEnter(InputConnection ic) {

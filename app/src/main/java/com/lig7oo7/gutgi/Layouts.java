@@ -30,6 +30,12 @@ public class Layouts {
     private static KeyDef period() { return new KeyDef(".", ".").dirs("\"", "'", ",", "").w(1); }
     private static KeyDef slash() { return new KeyDef("/", "/").dirs(":", ";", "@", "").w(1); }
 
+    private static KeyDef selKey(float w) {
+        KeyDef k = new KeyDef("sel", "@SELALL").w(w).noSubs();
+        k.selDrag = true;
+        return k;
+    }
+
     public static List<List<KeyDef>> hangul() {
         List<List<KeyDef>> r = new ArrayList<>();
         r.add(row(
@@ -60,8 +66,8 @@ public class Layouts {
                 new KeyDef("?123", "@SYM").w(1).func().noSubs(),
                 globe(0.62f),
                 space(3.6f),
-                // sel: 탭 = 전체선택, ← = 커서부터 처음까지, → = 커서부터 끝까지
-                new KeyDef("sel", "@SELALL").dirs(null, null, "@SELSTART", "@SELEND").w(0.62f).noSubs(),
+                // sel: 탭 = 전체선택, 왼쪽으로 끌면 커서 앞 글자를 한 칸씩 선택 (오른쪽으로 되돌리면 줄어듦)
+                selKey(0.62f),
                 enter(1)));
         return r;
     }
@@ -96,7 +102,7 @@ public class Layouts {
                 new KeyDef("cpy", "@COPY").w(0.7f).func().noSubs(),
                 space(2.5f),
                 new KeyDef("pst", "@PASTE").w(0.7f).func().noSubs(),
-                new KeyDef("sel", "@SELALL").dirs(null, null, "@SELSTART", "@SELEND").w(0.7f).func().noSubs(),
+                new KeyDef("sel", "@SELALL").w(0.7f).func().noSubs(),
                 enter(1)));
         return r;
     }

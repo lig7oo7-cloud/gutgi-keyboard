@@ -45,7 +45,10 @@ public class MainActivity extends Activity {
                 "  ㅡ‖ 키: 탭 ㅡ, →ㅐ ←ㅔ ↑ㅙ ↓ㅞ\n" +
                 "     (→ 긋고 탭 → ㅒ,  ← 긋고 탭 → ㅖ)\n" +
                 "  ㅢ 키: 탭 ㅢ, →ㅘ ←ㅝ ↑ㅚ ↓ㅟ\n\n" +
-                "sel: 탭 = 전체선택, ← = 커서~처음, → = 커서~끝\n" +
+                "sel(한글판): 탭 = 전체선택, 왼쪽으로 끌면 커서 앞 글자를\n" +
+                "     한 칸씩 선택 (오른쪽으로 되돌리면 줄어듦)\n" +
+                "상단: Gemini · 클립보드 · 상용구 · 카톡이모티콘\n" +
+                "  카톡이모티콘: 단어를 누르면 입력돼서 카톡이 추천을 띄움\n" +
                 "?123: 숫자·기호 (cut 잘라내기, cpy 복사, pst 붙여넣기)\n" +
                 "스페이스바를 좌우로 밀면 커서 이동, ⌫ 길게 누르면 연속 삭제");
         box.addView(guide);
@@ -63,13 +66,39 @@ public class MainActivity extends Activity {
         });
         box.addView(pick);
 
+        TextView phTitle = new TextView(this);
+        phTitle.setText("\n상용구 편집 (한 줄에 하나씩)");
+        phTitle.setTextSize(17);
+        phTitle.setTextColor(Color.BLACK);
+        box.addView(phTitle);
+
+        final EditText phrases = new EditText(this);
+        phrases.setMinLines(5);
+        phrases.setText(android.text.TextUtils.join("\n", Store.phrases(this)));
+        box.addView(phrases);
+
+        Button save = new Button(this);
+        save.setText("상용구 저장");
+        save.setOnClickListener(v -> {
+            java.util.List<String> l = new java.util.ArrayList<>();
+            for (String line : phrases.getText().toString().split("\n")) {
+                if (!line.trim().isEmpty()) l.add(line.trim());
+            }
+            Store.save(this, "phrases", l);
+            android.widget.Toast.makeText(this, "저장했어요", android.widget.Toast.LENGTH_SHORT).show();
+        });
+        box.addView(save);
+
         EditText test = new EditText(this);
         test.setHint("③ 여기서 연습해 보세요");
         test.setMinLines(4);
         box.addView(test);
 
-        ScrollView sv = new ScrollView(this);
+        final ScrollView sv = new ScrollView(this);
         sv.addView(box);
         setContentView(sv);
+        if (getIntent().getBooleanExtra("phrases", false)) {
+            sv.post(() -> { sv.smoothScrollTo(0, phTitle.getTop()); phrases.requestFocus(); });
+        }
     }
 }
