@@ -102,6 +102,9 @@ public class GutgiIME extends InputMethodService implements KeyboardView.Listene
                     else sendDownUpKeyEvents(KeyEvent.KEYCODE_DEL);
                 }
                 return;
+            case "@STROKE":
+                if (mode == HAN && hc.addStroke()) ic.setComposingText(hc.current(), 1);
+                return;
             case "@ENTER":
                 commitComposing();
                 handleEnter(ic);

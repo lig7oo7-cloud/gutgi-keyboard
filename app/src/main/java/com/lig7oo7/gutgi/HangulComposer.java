@@ -74,6 +74,18 @@ public class HangulComposer {
         push(); jung = v;
     }
 
+    /** 획 추가: 방금 친 모음에 점(획)을 하나 더한다. ㅏ→ㅑ, ㅕ→ㅖ, ㅐ→ㅒ 등 */
+    static final String[] STROKE = {
+            "ㅏㅑ", "ㅓㅕ", "ㅗㅛ", "ㅜㅠ", "ㅑㅒ", "ㅕㅖ", "ㅐㅒ", "ㅔㅖ"};
+
+    public boolean addStroke() {
+        if (jung == 0 || jong != 0) return false;
+        for (String s : STROKE) {
+            if (s.charAt(0) == jung) { push(); jung = s.charAt(1); return true; }
+        }
+        return false;
+    }
+
     public boolean backspace() {
         if (!isComposing()) return false;
         if (!hist.isEmpty()) {

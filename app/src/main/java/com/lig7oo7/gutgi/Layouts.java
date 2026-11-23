@@ -46,8 +46,8 @@ public class Layouts {
         r.add(row(
                 new KeyDef("ㅈ", "ㅈ").dirs("ㅉ", "~", "ㅊ", "ㅊ").w(2),
                 new KeyDef("ㅎ", "ㅎ").dirs("0", "8", "7", "9").w(2),
-                // 점 둘 모음: →ㅑ ←ㅕ ↑ㅛ ↓ㅠ
-                new KeyDef("··", "").dirs("ㅛ", "ㅠ", "ㅕ", "ㅑ").w(2),
+                // 점 둘 모음: →ㅑ ←ㅕ ↑ㅛ ↓ㅠ, 탭 = 앞 모음에 획 추가 (ㅕ→ㅖ, ㅑ→ㅒ)
+                new KeyDef("··", "@STROKE").dirs("ㅛ", "ㅠ", "ㅕ", "ㅑ").w(2),
                 new KeyDef("/", "/").dirs(":", ";", "@", "").w(1)));
         r.add(row(
                 new KeyDef("?123", "@SYM").w(1).func().noSubs(),
