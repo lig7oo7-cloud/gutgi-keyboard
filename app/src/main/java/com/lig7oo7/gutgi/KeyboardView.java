@@ -3,6 +3,7 @@ package com.lig7oo7.gutgi;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Paint;
+import android.graphics.Path;
 import android.graphics.RectF;
 import android.graphics.Typeface;
 import android.os.Handler;
@@ -41,6 +42,11 @@ public class KeyboardView extends View {
     private Runnable repeater;
     private int shift;
     private boolean laidOut;
+    private boolean enterSearch;
+    private String backLabel = "ㄱㄴㄷ";
+    private final Paint iconPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Path path = new Path();
+    private static final int ICON = 0xFF6F767C;
 
     private static class Ptr {
         KeyDef key;
@@ -68,6 +74,9 @@ public class KeyboardView extends View {
         stopRepeat();
         invalidate();
     }
+
+    public void setEnterSearch(boolean b) { enterSearch = b; invalidate(); }
+    public void setBackLabel(String l) { backLabel = l; invalidate(); }
 
     public void setShift(int s) {
         shift = s;
@@ -144,9 +153,20 @@ public class KeyboardView extends View {
                     continue;
                 }
 
-                String main = k.label;
-                if (k.isShift && shift == 2) main = "⇪";
+                if (k.icon != null) { drawIcon(canvas, k, r); continue; }
+
+                String main = k.backKey ? backLabel : k.label;
                 main = caseOf(k, main);
+                if (k.below != null) {
+                    // 영어 키: 글자는 위쪽, 기호는 아래쪽에 작게
+                    textPaint.setColor(TEXT);
+                    textPaint.setTextSize(Math.min(r.height() * 0.40f, 26 * dp));
+                    drawCentered(canvas, main, cx, r.top + r.height() * 0.40f, textPaint);
+                    float bs = Math.min(r.height() * 0.17f, 12 * dp);
+                    subPaint.setTextSize(bs);
+                    drawCentered(canvas, k.below, cx, r.top + r.height() * 0.78f, subPaint);
+                    continue;
+                }
                 textPaint.setColor(TEXT);
                 float big = main.length() <= 1 ? Math.min(r.height() * 0.44f, 26 * dp)
                         : Math.min(r.height() * 0.32f, 19 * dp);
@@ -162,6 +182,87 @@ public class KeyboardView extends View {
                     drawCentered(canvas, k.display("L"), r.left + s * 1.1f, cy, subPaint);
                 if (k.has("R") && r.width() > r.height() * 1.2f)
                     drawCentered(canvas, k.display("R"), r.right - s * 1.1f, cy, subPaint);
+            }
+        }
+    }
+
+    private void drawIcon(Canvas c, KeyDef k, RectF r) {
+        float cx = r.centerX(), cy = r.centerY();
+        float u = Math.min(r.height(), r.width()) * 0.16f;   // 아이콘 기준 크기
+        iconPaint.setStyle(Paint.Style.FILL);
+        iconPaint.setStrokeCap(Paint.Cap.ROUND);
+        iconPaint.setStrokeJoin(Paint.Join.ROUND);
+        switch (k.icon) {
+            case "DEL": {
+                float w = u * 2.6f, h = u * 1.7f;
+                path.reset();
+                path.moveTo(cx - w / 2, cy);
+                path.lineTo(cx - w / 2 + h * 0.55f, cy - h / 2);
+                path.lineTo(cx + w / 2, cy - h / 2);
+                path.lineTo(cx + w / 2, cy + h / 2);
+                path.lineTo(cx - w / 2 + h * 0.55f, cy + h / 2);
+                path.close();
+                iconPaint.setColor(ICON);
+                c.drawPath(path, iconPaint);
+                iconPaint.setColor(0xFFFFFFFF);
+                iconPaint.setStyle(Paint.Style.STROKE);
+                iconPaint.setStrokeWidth(u * 0.28f);
+                float xc = cx + w * 0.12f, d = h * 0.22f;
+                c.drawLine(xc - d, cy - d, xc + d, cy + d, iconPaint);
+                c.drawLine(xc - d, cy + d, xc + d, cy - d, iconPaint);
+                break;
+            }
+            case "GLOBE": {
+                float rad = u * 1.35f;
+                iconPaint.setColor(0xFF8A9299);
+                iconPaint.setStyle(Paint.Style.STROKE);
+                iconPaint.setStrokeWidth(u * 0.22f);
+                c.drawCircle(cx, cy, rad, iconPaint);
+                c.drawOval(cx - rad * 0.45f, cy - rad, cx + rad * 0.45f, cy + rad, iconPaint);
+                c.drawLine(cx, cy - rad, cx, cy + rad, iconPaint);
+                c.drawLine(cx - rad, cy, cx + rad, cy, iconPaint);
+                float yo = rad * 0.5f, xo = (float) Math.sqrt(rad * rad - yo * yo);
+                c.drawLine(cx - xo, cy - yo, cx + xo, cy - yo, iconPaint);
+                c.drawLine(cx - xo, cy + yo, cx + xo, cy + yo, iconPaint);
+                break;
+            }
+            case "ENTER": {
+                iconPaint.setColor(0xFFFFFFFF);
+                iconPaint.setStyle(Paint.Style.STROKE);
+                iconPaint.setStrokeWidth(u * 0.32f);
+                if (enterSearch) {
+                    float rad = u * 0.95f;
+                    float ox = cx - u * 0.35f, oy = cy - u * 0.35f;
+                    c.drawCircle(ox, oy, rad, iconPaint);
+                    float o = rad * 0.72f;
+                    c.drawLine(ox + o, oy + o, ox + o + u * 1.1f, oy + o + u * 1.1f, iconPaint);
+                } else {
+                    float x1 = cx + u * 1.3f, x0 = cx - u * 1.3f, yb = cy + u * 0.4f;
+                    path.reset();
+                    path.moveTo(x1, cy - u * 1.0f);
+                    path.lineTo(x1, yb);
+                    path.lineTo(x0, yb);
+                    c.drawPath(path, iconPaint);
+                    c.drawLine(x0, yb, x0 + u * 0.7f, yb - u * 0.7f, iconPaint);
+                    c.drawLine(x0, yb, x0 + u * 0.7f, yb + u * 0.7f, iconPaint);
+                }
+                break;
+            }
+            case "SHIFT": {
+                iconPaint.setColor(shift > 0 ? 0xFF00897B : ICON);
+                float w = u * 1.4f, top = cy - u * 1.3f, mid = cy, bot = cy + u * 1.0f;
+                path.reset();
+                path.moveTo(cx, top);
+                path.lineTo(cx + w, mid);
+                path.lineTo(cx + w * 0.45f, mid);
+                path.lineTo(cx + w * 0.45f, bot);
+                path.lineTo(cx - w * 0.45f, bot);
+                path.lineTo(cx - w * 0.45f, mid);
+                path.lineTo(cx - w, mid);
+                path.close();
+                c.drawPath(path, iconPaint);
+                if (shift == 2) c.drawRect(cx - w * 0.6f, bot + u * 0.35f, cx + w * 0.6f, bot + u * 0.65f, iconPaint);
+                break;
             }
         }
     }

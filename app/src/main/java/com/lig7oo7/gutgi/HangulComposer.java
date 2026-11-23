@@ -85,6 +85,17 @@ public class HangulComposer {
         return false;
     }
 
+    /** 같은 키 다시 탭: ㅏ+ㅣ탭→ㅑ, ㅐ+ㅡ탭→ㅒ, ㅔ+ㅡ탭→ㅖ */
+    static final String[] RETAP = {"ㅣㅏㅑ", "ㅡㅐㅒ", "ㅡㅔㅖ"};
+
+    public boolean retap(char tapped) {
+        if (jung == 0 || jong != 0) return false;
+        for (String s : RETAP) {
+            if (s.charAt(0) == tapped && s.charAt(1) == jung) { push(); jung = s.charAt(2); return true; }
+        }
+        return false;
+    }
+
     public boolean backspace() {
         if (!isComposing()) return false;
         if (!hist.isEmpty()) {

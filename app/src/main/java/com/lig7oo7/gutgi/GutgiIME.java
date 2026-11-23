@@ -5,6 +5,8 @@ import android.text.InputType;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.inputmethod.EditorInfo;
+import android.view.inputmethod.ExtractedText;
+import android.view.inputmethod.ExtractedTextRequest;
 import android.view.inputmethod.InputConnection;
 
 import java.util.List;
@@ -78,6 +80,10 @@ public class GutgiIME extends InputMethodService implements KeyboardView.Listene
         if (view == null) return;
         view.setRows(mode == HAN ? hanRows : mode == ENG ? engRows : symRows);
         view.setShift(mode == ENG ? shift : 0);
+        view.setBackLabel(langMode == HAN ? "ㄱㄴㄷ" : "abc");
+        EditorInfo ei = getCurrentInputEditorInfo();
+        view.setEnterSearch(ei != null
+                && (ei.imeOptions & EditorInfo.IME_MASK_ACTION) == EditorInfo.IME_ACTION_SEARCH);
     }
 
     private void commitComposing() {
@@ -104,6 +110,34 @@ public class GutgiIME extends InputMethodService implements KeyboardView.Listene
                 return;
             case "@STROKE":
                 if (mode == HAN && hc.addStroke()) ic.setComposingText(hc.current(), 1);
+                return;
+            case "@SELALL":
+                commitComposing();
+                ic.performContextMenuAction(android.R.id.selectAll);
+                return;
+            case "@SELSTART":
+            case "@SELEND": {
+                commitComposing();
+                ExtractedText et = ic.getExtractedText(new ExtractedTextRequest(), 0);
+                if (et == null || et.text == null) {
+                    ic.performContextMenuAction(android.R.id.selectAll);
+                    return;
+                }
+                if (t.equals("@SELSTART")) ic.setSelection(et.startOffset, et.startOffset + Math.min(et.selectionStart, et.selectionEnd));
+                else ic.setSelection(et.startOffset + Math.min(et.selectionStart, et.selectionEnd), et.startOffset + et.text.length());
+                return;
+            }
+            case "@CUT":
+                commitComposing();
+                ic.performContextMenuAction(android.R.id.cut);
+                return;
+            case "@COPY":
+                commitComposing();
+                ic.performContextMenuAction(android.R.id.copy);
+                return;
+            case "@PASTE":
+                commitComposing();
+                ic.performContextMenuAction(android.R.id.paste);
                 return;
             case "@ENTER":
                 commitComposing();
@@ -145,7 +179,7 @@ public class GutgiIME extends InputMethodService implements KeyboardView.Listene
 
         if (mode == HAN && t.length() == 1
                 && (HangulComposer.isCho(t.charAt(0)) || HangulComposer.isVowel(t.charAt(0)))) {
-            hc.input(t.charAt(0));
+            if (!hc.retap(t.charAt(0))) hc.input(t.charAt(0));
             String done = hc.takeCommit();
             ic.beginBatchEdit();
             if (!done.isEmpty()) ic.commitText(done, 1);

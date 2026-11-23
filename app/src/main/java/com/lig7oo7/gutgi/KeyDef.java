@@ -6,7 +6,9 @@ import android.graphics.RectF;
 public class KeyDef {
     public String label, tap, up, down, left, right;
     public float w = 1f;
-    public boolean func, repeat, space, spacer, letter, isShift, showSubs = true;
+    public boolean func, repeat, space, spacer, letter, isShift, backKey, showSubs = true;
+    public String icon;   // DEL, ENTER, GLOBE, SHIFT
+    public String below;  // 영어 키: 글자 아래 작은 기호
     public final RectF rect = new RectF();
 
     public KeyDef(String label, String tap) {
@@ -23,6 +25,7 @@ public class KeyDef {
     public KeyDef func() { this.func = true; return this; }
     public KeyDef letter() { this.letter = true; return this; }
     public KeyDef noSubs() { this.showSubs = false; return this; }
+    public KeyDef icon(String i) { this.icon = i; return this; }
 
     public static KeyDef spacer(float w) {
         KeyDef k = new KeyDef("", "");
