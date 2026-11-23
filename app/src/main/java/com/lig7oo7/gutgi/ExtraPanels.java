@@ -155,8 +155,8 @@ public class ExtraPanels {
         } else {
             col.addView(note("⚠ " + (r != null && r.error != null ? r.error : "답을 받지 못했어요")));
             if (r == null || r.quotaOrKey) {
-                col.addView(buttonRow(new String[]{"Gemini 앱으로 보내기 (구독)"}, new View.OnClickListener[]{
-                        v -> host.sendShotToGeminiApp()}));
+                col.addView(buttonRow(new String[]{"API 키 · 모델 설정 열기"}, new View.OnClickListener[]{
+                        v -> { AjaeBus.clear(); host.openApp("aisettings"); }}));
             }
         }
         return scroll(col);

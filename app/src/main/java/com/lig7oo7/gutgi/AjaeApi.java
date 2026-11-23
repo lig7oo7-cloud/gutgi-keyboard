@@ -54,7 +54,7 @@ public class AjaeApi {
     public static Result call(Context c, File image) {
         Result r = new Result();
         String key = key(c);
-        if (key.isEmpty()) { r.error = "API 키가 없어요"; r.quotaOrKey = true; return r; }
+        if (key.isEmpty()) { r.error = "API 키가 없어요. 굿기 키보드 앱에 키를 넣고 [AI 설정 저장]을 눌러 주세요"; r.quotaOrKey = true; return r; }
         HttpURLConnection con = null;
         try {
             String b64 = Base64.encodeToString(readAll(new FileInputStream(image)), Base64.NO_WRAP);
@@ -88,7 +88,7 @@ public class AjaeApi {
             int code = con.getResponseCode();
             InputStream in = code < 400 ? con.getInputStream() : con.getErrorStream();
             String text = in == null ? "" : new String(readAll(in), "UTF-8");
-            if (code == 429) { r.error = "무료 사용량을 다 썼어요"; r.quotaOrKey = true; return r; }
+            if (code == 429) { r.error = "사용량 한도 초과 (429). AI Studio에서 결제를 켜면 계속 쓸 수 있어요"; r.quotaOrKey = true; return r; }
             if (code == 400 || code == 401 || code == 403) {
                 r.error = "API 키 또는 모델 설정을 확인하세요 (" + code + ")";
                 r.quotaOrKey = true;

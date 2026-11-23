@@ -98,7 +98,7 @@ public class MainActivity extends Activity {
         aiNote.setTextSize(13);
         aiNote.setTextColor(0xFF607D8B);
         aiNote.setText("Google AI Studio(aistudio.google.com)에서 발급한 API 키를 붙여넣으세요.\n" +
-                "키가 없거나 무료 사용량이 끝나면 Gemini 앱(구독)으로 보내는 방식으로 이어서 쓸 수 있어요.\n" +
+                "무료 한도를 넘기지 않으려면 AI Studio에서 결제(유료 등급)를 켜 두세요. 몇 번 쓰는 정도면 요금은 아주 적어요.\n" +
                 "버튼을 눌렀을 때 캡처한 채팅 화면만 전송되고, 키보드 입력 내용은 보내지 않아요.");
         box.addView(aiNote);
         final android.content.SharedPreferences sp = AjaeApi.prefs(this);
@@ -147,6 +147,9 @@ public class MainActivity extends Activity {
         final ScrollView sv = new ScrollView(this);
         sv.addView(box);
         setContentView(sv);
+        if (getIntent().getBooleanExtra("aisettings", false)) {
+            sv.post(() -> { sv.smoothScrollTo(0, aiTitle.getTop()); keyIn.requestFocus(); });
+        }
         if (getIntent().getBooleanExtra("phrases", false)) {
             sv.post(() -> { sv.smoothScrollTo(0, phTitle.getTop()); phrases.requestFocus(); });
         }

@@ -51,10 +51,8 @@ public class ShotActivity extends Activity {
             ShotService.callback = null;
             if (file == null) {
                 Toast.makeText(this, "화면을 캡처하지 못했어요. 다시 눌러 주세요", Toast.LENGTH_SHORT).show();
-            } else if (!AjaeApi.key(this).isEmpty()) {
-                AjaeBus.start(this, file);   // 키보드 안에서 바로 답장 받기
             } else {
-                sendToGemini();               // 키가 없으면 Gemini 앱 방식
+                AjaeBus.start(this, file);   // 항상 키보드 안에서 바로 답장 (Gemini 앱으로 넘기지 않음)
             }
             finish();
         });
