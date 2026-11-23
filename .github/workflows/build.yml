@@ -23,15 +23,21 @@ jobs:
       - name: Build
         run: gradle assembleRelease --no-daemon --stacktrace
       - name: Rename
-        run: cp app/build/outputs/apk/release/app-release.apk gutgi-keyboard.apk
+        run: |
+          cp app/build/outputs/apk/release/app-release.apk gutgi-keyboard.apk
+          cp gifcap/build/outputs/apk/release/gifcap-release.apk emotion-gif-capture.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: gutgi-keyboard
-          path: gutgi-keyboard.apk
+          name: apks
+          path: |
+            gutgi-keyboard.apk
+            emotion-gif-capture.apk
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ github.run_number }}
           name: 굿기 키보드 v${{ github.run_number }}
-          files: gutgi-keyboard.apk
+          files: |
+            gutgi-keyboard.apk
+            emotion-gif-capture.apk
           make_latest: true

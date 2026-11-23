@@ -1,0 +1,41 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+def runNumber = Integer.parseInt(System.getenv("GITHUB_RUN_NUMBER") ?: "1")
+
+android {
+    namespace 'com.lig7oo7.gifcap'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.lig7oo7.gifcap"
+        minSdk 29
+        targetSdk 34
+        versionCode runNumber
+        versionName "1.0." + runNumber
+    }
+
+    signingConfigs {
+        fixed {
+            storeFile rootProject.file('keystore/gutgi.keystore')
+            storePassword 'gutgi1234'
+            keyAlias 'gutgi'
+            keyPassword 'gutgi1234'
+        }
+    }
+
+    buildTypes {
+        release { minifyEnabled false; signingConfig signingConfigs.fixed }
+        debug { signingConfig signingConfigs.fixed }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions { jvmTarget = '17' }
+
+    lint { abortOnError false; checkReleaseBuilds false }
+}
