@@ -28,9 +28,7 @@ public class ExtraPanels {
         void insertText(String text);
         void contextAction(int id);
         CharSequence selectedText();
-        String[] acceptedTypes();
-        boolean acceptsGif();
-        void sendGif(GifLibrary.Item item);
+        void replaceWord(String word);
         void openApp(String extra);
     }
 
@@ -62,7 +60,7 @@ public class ExtraPanels {
         LinearLayout bar = new LinearLayout(ctx);
         bar.setOrientation(LinearLayout.HORIZONTAL);
         bar.setPadding(px(4), px(4), px(4), px(2));
-        String[] names = {"✦ Gemini", "📋 클립보드", "📝 상용구", "😊 카톡이모티콘"};
+        String[] names = {"✦ Gemini", "📋 클립보드", "📝 상용구", "😊 감정단어"};
         float[] weights = {1f, 1f, 1f, 1.25f};
         for (int i = 0; i < 4; i++) {
             final int idx = i;
@@ -308,100 +306,10 @@ public class ExtraPanels {
         Toast.makeText(ctx, "상용구에 추가했어요", Toast.LENGTH_SHORT).show();
     }
 
-    // ───────── 내 GIF (캡처 앱이 저장한 것) ─────────
-    private void addMyGifs(LinearLayout col) {
-        // 진단: 지금 입력창이 GIF 직접 넣기를 받는지
-        String[] types = host.acceptedTypes();
-        String diag = host.acceptsGif()
-                ? "✅ 이 입력창은 GIF 직접 넣기 가능"
-                : "↪ 이 입력창은 직접 넣기 불가 → 누르면 공유창으로 보냄";
-        TextView d = note(diag + (types.length > 0 ? "\n   받는 형식: " + TextUtils.join(", ", types) : "\n   받는 형식: 없음"));
-        d.setTextColor(host.acceptsGif() ? 0xFF00897B : 0xFFE65100);
-        col.addView(d);
-
-        int perm = GifLibrary.permissionState(ctx);
-        if (perm == 0) {
-            col.addView(note("⚠ 사진 접근 권한이 없어서 내 GIF를 못 읽어요."));
-            col.addView(buttonRow(new String[]{"사진 접근 허용하러 가기"}, new View.OnClickListener[]{
-                    v -> host.openApp("gifperm")}));
-            return;
-        }
-        final List<GifLibrary.Item> all = GifLibrary.load(ctx);
-        TextView info = note("권한: " + (perm == 2 ? "전체 허용" : "일부 사진만 ⚠") +
-                " · 폰에서 보이는 GIF " + GifLibrary.lastGifTotal + "개 · EmotionGif " + all.size() + "개" +
-                (GifLibrary.lastError != null ? "\n오류: " + GifLibrary.lastError : ""));
-        col.addView(info);
-        if (perm == 1) {
-            col.addView(buttonRow(new String[]{"'모두 허용'으로 바꾸기 (설정 열기)"}, new View.OnClickListener[]{
-                    v -> host.openApp("appsettings")}));
-        }
-        col.addView(buttonRow(new String[]{"↻ 새로고침"}, new View.OnClickListener[]{
-                v -> showPanel(3, emotionPanel())}));
-        if (all.isEmpty()) {
-            col.addView(note("EmotionGif 폴더의 GIF를 못 찾았어요."));
-            return;
-        }
-        // 태그 필터
-        java.util.LinkedHashSet<String> tags = new java.util.LinkedHashSet<>();
-        for (GifLibrary.Item it : all) tags.add(it.tag);
-        LinearLayout tagRow = new LinearLayout(ctx);
-        HorizontalScrollView ths = new HorizontalScrollView(ctx);
-        ths.setHorizontalScrollBarEnabled(false);
-        ths.addView(tagRow);
-        java.util.List<String> chips = new java.util.ArrayList<>();
-        chips.add("전체");
-        chips.addAll(tags);
-        for (String t : chips) {
-            boolean on = (gifFilter == null && t.equals("전체")) || t.equals(gifFilter);
-            TextView c = chip(t, 13);
-            c.setBackground(round(on ? ACTIVE : CHIP));
-            c.setOnClickListener(v -> {
-                gifFilter = t.equals("전체") ? null : t;
-                showPanel(3, emotionPanel());
-            });
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, px(30));
-            lp.setMargins(px(3), px(2), px(3), px(2));
-            tagRow.addView(c, lp);
-        }
-        col.addView(ths);
-
-        // 미리보기 줄
-        LinearLayout strip = new LinearLayout(ctx);
-        HorizontalScrollView shs = new HorizontalScrollView(ctx);
-        shs.addView(strip);
-        col.addView(shs);
-        final int size = px(76);
-        for (final GifLibrary.Item it : all) {
-            if (gifFilter != null && !gifFilter.equals(it.tag)) continue;
-            final android.widget.ImageView iv = new android.widget.ImageView(ctx);
-            iv.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
-            iv.setBackground(round(CHIP));
-            iv.setPadding(px(2), px(2), px(2), px(2));
-            iv.setOnClickListener(v -> host.sendGif(it));
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(size, size);
-            lp.setMargins(px(3), px(3), px(3), px(3));
-            strip.addView(iv, lp);
-            new Thread(() -> {
-                final android.graphics.Bitmap b = GifLibrary.thumb(ctx, it.uri, size);
-                if (b != null) iv.post(() -> iv.setImageBitmap(b));
-            }).start();
-        }
-    }
-
     // ───────── 카톡 이모티콘 유도 ─────────
-    private String gifFilter = null;   // null = 전체
-
     private View emotionPanel() {
         LinearLayout col = column();
-        addMyGifs(col);
-        col.addView(note("단어를 누르면 입력돼요 → 카톡이 그 단어에 맞는 이모티콘을 추천해요. 위 줄은 바로 넣는 이모지."));
-
-        LinearLayout suggest = new LinearLayout(ctx);
-        suggest.setOrientation(LinearLayout.HORIZONTAL);
-        HorizontalScrollView hs = new HorizontalScrollView(ctx);
-        hs.addView(suggest);
-        hs.setVisibility(View.GONE);
-
+        col.addView(note("단어를 누르면 입력돼요 (방금 누른 단어는 새 단어로 바뀜) → 카톡이 어울리는 이모티콘을 추천해요."));
         int perRow = 4;
         LinearLayout row = null;
         for (int i = 0; i < Emotions.LIST.length; i++) {
@@ -410,33 +318,15 @@ public class ExtraPanels {
                 row.setOrientation(LinearLayout.HORIZONTAL);
                 col.addView(row);
             }
-            final String[] e = Emotions.LIST[i];
-            TextView w = chip(e[0], 15);
+            final String word = Emotions.LIST[i][0];
+            TextView w = chip(word, 15);
             w.setTypeface(Typeface.DEFAULT_BOLD);
-            w.setOnClickListener(v -> {
-                host.insertText(e[0]);
-                suggest.removeAllViews();
-                for (int k = 1; k < e.length; k++) {
-                    final String s = e[k];
-                    TextView c = chip(s, 15);
-                    c.setBackground(round(0xFFFCE4EC));
-                    c.setOnClickListener(x -> host.insertText(s));
-                    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, px(36));
-                    lp.setMargins(px(3), px(3), px(3), px(3));
-                    suggest.addView(c, lp);
-                }
-                hs.setVisibility(View.VISIBLE);
-            });
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, px(38), 1f);
+            w.setOnClickListener(v -> host.replaceWord(word));
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, px(40), 1f);
             lp.setMargins(px(3), px(3), px(3), px(3));
             row.addView(w, lp);
         }
-
-        LinearLayout wrap = new LinearLayout(ctx);
-        wrap.setOrientation(LinearLayout.VERTICAL);
-        wrap.addView(hs, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        View sc = scroll(col);
-        wrap.addView(sc, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
-        return wrap;
+        return scroll(col);
     }
+
 }

@@ -47,8 +47,8 @@ public class MainActivity extends Activity {
                 "  ㅢ 키: 탭 ㅢ, →ㅘ ←ㅝ ↑ㅚ ↓ㅟ\n\n" +
                 "sel(한글판): 탭 = 전체선택, 왼쪽으로 끌면 커서 앞 글자를\n" +
                 "     한 칸씩 선택 (오른쪽으로 되돌리면 줄어듦)\n" +
-                "상단: Gemini · 클립보드 · 상용구 · 카톡이모티콘\n" +
-                "  카톡이모티콘: 단어를 누르면 입력돼서 카톡이 추천을 띄움\n" +
+                "상단: Gemini · 클립보드 · 상용구 · 감정단어\n" +
+                "  감정단어: 누르면 입력(앞서 누른 단어는 교체) → 카톡 이모티콘 추천\n" +
                 "?123: 숫자·기호 (cut 잘라내기, cpy 복사, pst 붙여넣기)\n" +
                 "스페이스바를 좌우로 밀면 커서 이동, ⌫ 길게 누르면 연속 삭제");
         box.addView(guide);
@@ -89,15 +89,6 @@ public class MainActivity extends Activity {
         });
         box.addView(save);
 
-        Button gifPerm = new Button(this);
-        gifPerm.setText("카톡이모티콘 패널에서 내 GIF 보기: 사진 접근 허용");
-        gifPerm.setOnClickListener(v -> {
-            if (GifLibrary.permissionState(this) == 0) requestPermissions(new String[]{GifLibrary.permission()}, 7);
-            else startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                    android.net.Uri.parse("package:" + getPackageName())));
-        });
-        box.addView(gifPerm);
-
         EditText test = new EditText(this);
         test.setHint("③ 여기서 연습해 보세요");
         test.setMinLines(4);
@@ -106,13 +97,6 @@ public class MainActivity extends Activity {
         final ScrollView sv = new ScrollView(this);
         sv.addView(box);
         setContentView(sv);
-        if (getIntent().getBooleanExtra("appsettings", false)) {
-            startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                    android.net.Uri.parse("package:" + getPackageName())));
-        }
-        if (getIntent().getBooleanExtra("gifperm", false) && GifLibrary.permissionState(this) != 2) {
-            requestPermissions(new String[]{GifLibrary.permission()}, 7);
-        }
         if (getIntent().getBooleanExtra("phrases", false)) {
             sv.post(() -> { sv.smoothScrollTo(0, phTitle.getTop()); phrases.requestFocus(); });
         }
