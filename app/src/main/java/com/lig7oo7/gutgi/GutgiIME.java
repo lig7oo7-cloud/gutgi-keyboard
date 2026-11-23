@@ -84,6 +84,28 @@ public class GutgiIME extends InputMethodService implements KeyboardView.Listene
 
     private String lastWord = null;
 
+    /** 아재개그 요청을 Gemini로 보냈음을 기록 → 3분 안에 키보드가 다시 뜨면 '기록' 패널을 바로 연다 */
+    public static void markAjaePending(android.content.Context c) {
+        c.getSharedPreferences("gutgi", MODE_PRIVATE).edit()
+                .putLong("ajaeAt", System.currentTimeMillis()).apply();
+    }
+
+    private boolean takeAjaePending() {
+        android.content.SharedPreferences sp = getSharedPreferences("gutgi", MODE_PRIVATE);
+        long at = sp.getLong("ajaeAt", 0);
+        if (at == 0) return false;
+        sp.edit().remove("ajaeAt").apply();
+        return System.currentTimeMillis() - at < 3 * 60 * 1000;
+    }
+
+    @Override
+    public void startAjae() {
+        commitComposing();
+        Intent i = new Intent(this, ShotActivity.class);
+        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_NO_ANIMATION);
+        startActivity(i);
+    }
+
     /** 감정 단어 버튼: 방금 넣은 단어가 커서 바로 앞에 그대로 있으면 지우고 새 단어로 교체 */
     @Override
     public void replaceWord(String word) {
@@ -125,7 +147,10 @@ public class GutgiIME extends InputMethodService implements KeyboardView.Listene
         super.onStartInputView(info, restarting);
         hc.reset();
         shift = 0;
-        if (panels != null) panels.reset();
+        if (panels != null) {
+            panels.reset();
+            if (takeAjaePending()) panels.openHistory();
+        }
         lastWord = null;
         int cls = info.inputType & InputType.TYPE_MASK_CLASS;
         int var = info.inputType & InputType.TYPE_MASK_VARIATION;

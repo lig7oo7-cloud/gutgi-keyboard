@@ -29,6 +29,7 @@ public class ExtraPanels {
         void contextAction(int id);
         CharSequence selectedText();
         void replaceWord(String word);
+        void startAjae();
         void openApp(String extra);
     }
 
@@ -81,6 +82,15 @@ public class ExtraPanels {
             t.setOnClickListener(v -> onTab(idx));
             tabs[i] = t;
         }
+        // 아재개그 답장 (화면 공유 → Gemini)
+        IconView ajae = new IconView(ctx, IconView.AJAE);
+        ajae.setBackground(round(0xFFFFF3C4));
+        ajae.setOnClickListener(v -> host.startAjae());
+        ajae.setOnLongClickListener(v -> { Toast.makeText(ctx, "아재개그 답장 (화면 공유 → Gemini)", Toast.LENGTH_SHORT).show(); return true; });
+        LinearLayout.LayoutParams alp = new LinearLayout.LayoutParams(px(40), px(36));
+        alp.setMargins(px(2), 0, px(2), 0);
+        bar.addView(ajae, alp);
+
         // 복사 · 잘라내기 · 붙여넣기 (아이콘만)
         int[] kinds = {IconView.COPY, IconView.CUT, IconView.PASTE};
         int[] ids = {android.R.id.copy, android.R.id.cut, android.R.id.paste};
@@ -105,6 +115,9 @@ public class ExtraPanels {
 
     /** 입력창이 바뀌면 키보드로 돌아오기 */
     public void reset() { showKeyboard(); }
+
+    /** Gemini에서 복사해 온 답을 바로 고를 수 있게 기록 패널 열기 */
+    public void openHistory() { showPanel(1, clipboardPanel()); }
 
     private int px(float v) { return (int) (v * dp); }
 
