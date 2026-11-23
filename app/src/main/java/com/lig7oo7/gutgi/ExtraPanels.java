@@ -28,6 +28,10 @@ public class ExtraPanels {
         void insertText(String text);
         void contextAction(int id);
         CharSequence selectedText();
+        String[] acceptedTypes();
+        boolean acceptsGif();
+        void sendGif(GifLibrary.Item item);
+        void openApp(String extra);
     }
 
     private static final int BG = 0xFFE8EBEF;
@@ -276,12 +280,7 @@ public class ExtraPanels {
                     List<String> c = Store.clips(ctx);
                     addPhrase(c.isEmpty() ? null : c.get(0), "복사한 글이 없어요");
                 },
-                v -> {
-                    Intent i = new Intent(ctx, MainActivity.class);
-                    i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    i.putExtra("phrases", true);
-                    ctx.startActivity(i);
-                }
+                v -> host.openApp("phrases")
         }));
         List<String> ph = Store.phrases(ctx);
         if (ph.isEmpty()) col.addView(note("자주 쓰는 문구를 추가해 보세요."));
@@ -309,10 +308,81 @@ public class ExtraPanels {
         Toast.makeText(ctx, "상용구에 추가했어요", Toast.LENGTH_SHORT).show();
     }
 
+    // ───────── 내 GIF (캡처 앱이 저장한 것) ─────────
+    private void addMyGifs(LinearLayout col) {
+        // 진단: 지금 입력창이 GIF 직접 넣기를 받는지
+        String[] types = host.acceptedTypes();
+        String diag = host.acceptsGif()
+                ? "✅ 이 입력창은 GIF 직접 넣기 가능"
+                : "↪ 이 입력창은 직접 넣기 불가 → 누르면 공유창으로 보냄";
+        TextView d = note(diag + (types.length > 0 ? "\n   받는 형식: " + TextUtils.join(", ", types) : "\n   받는 형식: 없음"));
+        d.setTextColor(host.acceptsGif() ? 0xFF00897B : 0xFFE65100);
+        col.addView(d);
+
+        if (!GifLibrary.hasPermission(ctx)) {
+            col.addView(buttonRow(new String[]{"내 GIF 보려면: 사진 접근 허용"}, new View.OnClickListener[]{
+                    v -> host.openApp("gifperm")}));
+            return;
+        }
+        final List<GifLibrary.Item> all = GifLibrary.load(ctx);
+        if (all.isEmpty()) {
+            col.addView(note("저장된 GIF가 없어요. 'GIF 캡처' 앱으로 만들면 여기 보여요."));
+            return;
+        }
+        // 태그 필터
+        java.util.LinkedHashSet<String> tags = new java.util.LinkedHashSet<>();
+        for (GifLibrary.Item it : all) tags.add(it.tag);
+        LinearLayout tagRow = new LinearLayout(ctx);
+        HorizontalScrollView ths = new HorizontalScrollView(ctx);
+        ths.setHorizontalScrollBarEnabled(false);
+        ths.addView(tagRow);
+        java.util.List<String> chips = new java.util.ArrayList<>();
+        chips.add("전체");
+        chips.addAll(tags);
+        for (String t : chips) {
+            boolean on = (gifFilter == null && t.equals("전체")) || t.equals(gifFilter);
+            TextView c = chip(t, 13);
+            c.setBackground(round(on ? ACTIVE : CHIP));
+            c.setOnClickListener(v -> {
+                gifFilter = t.equals("전체") ? null : t;
+                showPanel(3, emotionPanel());
+            });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, px(30));
+            lp.setMargins(px(3), px(2), px(3), px(2));
+            tagRow.addView(c, lp);
+        }
+        col.addView(ths);
+
+        // 미리보기 줄
+        LinearLayout strip = new LinearLayout(ctx);
+        HorizontalScrollView shs = new HorizontalScrollView(ctx);
+        shs.addView(strip);
+        col.addView(shs);
+        final int size = px(76);
+        for (final GifLibrary.Item it : all) {
+            if (gifFilter != null && !gifFilter.equals(it.tag)) continue;
+            final android.widget.ImageView iv = new android.widget.ImageView(ctx);
+            iv.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
+            iv.setBackground(round(CHIP));
+            iv.setPadding(px(2), px(2), px(2), px(2));
+            iv.setOnClickListener(v -> host.sendGif(it));
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(size, size);
+            lp.setMargins(px(3), px(3), px(3), px(3));
+            strip.addView(iv, lp);
+            new Thread(() -> {
+                final android.graphics.Bitmap b = GifLibrary.thumb(ctx, it.uri, size);
+                if (b != null) iv.post(() -> iv.setImageBitmap(b));
+            }).start();
+        }
+    }
+
     // ───────── 카톡 이모티콘 유도 ─────────
+    private String gifFilter = null;   // null = 전체
+
     private View emotionPanel() {
         LinearLayout col = column();
-        col.addView(note("단어를 누르면 입력돼요 → 카톡이 그 단어에 맞는 이모티콘을 추천해요. 아래 줄은 바로 넣는 이모지."));
+        addMyGifs(col);
+        col.addView(note("단어를 누르면 입력돼요 → 카톡이 그 단어에 맞는 이모티콘을 추천해요. 위 줄은 바로 넣는 이모지."));
 
         LinearLayout suggest = new LinearLayout(ctx);
         suggest.setOrientation(LinearLayout.HORIZONTAL);

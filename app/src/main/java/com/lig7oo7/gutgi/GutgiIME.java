@@ -1,6 +1,11 @@
 package com.lig7oo7.gutgi;
 
 import android.content.ClipData;
+import android.content.ClipDescription;
+import android.content.Intent;
+import android.net.Uri;
+import android.view.inputmethod.InputContentInfo;
+import android.widget.Toast;
 import android.content.ClipboardManager;
 import android.inputmethodservice.InputMethodService;
 import android.text.InputType;
@@ -78,6 +83,75 @@ public class GutgiIME extends InputMethodService implements KeyboardView.Listene
         if (ic == null) return;
         commitComposing();
         ic.performContextMenuAction(id);
+    }
+
+    /** 지금 입력창이 키보드에서 받는 이미지 형식 목록 */
+    @Override
+    public String[] acceptedTypes() {
+        EditorInfo ei = getCurrentInputEditorInfo();
+        return ei == null || ei.contentMimeTypes == null ? new String[0] : ei.contentMimeTypes;
+    }
+
+    @Override
+    public boolean acceptsGif() {
+        for (String t : acceptedTypes()) {
+            if (ClipDescription.compareMimeTypes("image/gif", t)) return true;
+        }
+        return false;
+    }
+
+    /** 1순위: 입력창에 GIF 직접 넣기 → 안 되면 2순위: 카톡 공유창으로 보내기 */
+    @Override
+    public void sendGif(GifLibrary.Item item) {
+        Uri uri;
+        try {
+            uri = GifProvider.uriFor(GifLibrary.copyToCache(this, item));
+        } catch (Exception e) {
+            Toast.makeText(this, "GIF를 열 수 없어요", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        commitComposing();
+        InputConnection ic = getCurrentInputConnection();
+        if (ic != null && acceptsGif()) {
+            InputContentInfo info = new InputContentInfo(uri,
+                    new ClipDescription(item.name, new String[]{"image/gif"}), null);
+            if (ic.commitContent(info, InputConnection.INPUT_CONTENT_GRANT_READ_URI_PERMISSION, null)) return;
+        }
+        shareGif(uri);
+    }
+
+    private void shareGif(Uri uri) {
+        Intent send = new Intent(Intent.ACTION_SEND);
+        send.setType("image/gif");
+        send.putExtra(Intent.EXTRA_STREAM, uri);
+        send.setClipData(ClipData.newRawUri("gif", uri));
+        send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+        EditorInfo ei = getCurrentInputEditorInfo();
+        String pkg = ei == null ? null : ei.packageName;
+        Intent target = null;
+        if (pkg != null) {
+            Intent direct = new Intent(send).setPackage(pkg);
+            if (direct.resolveActivity(getPackageManager()) != null) target = direct;
+        }
+        if (target == null) {
+            target = Intent.createChooser(send, "GIF 보내기");
+            target.setClipData(ClipData.newRawUri("gif", uri));
+            target.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+        }
+        try {
+            Toast.makeText(this, "이 입력창은 직접 넣기를 지원하지 않아 공유창으로 보낼게요", Toast.LENGTH_SHORT).show();
+            startActivity(target);
+        } catch (Exception e) {
+            Toast.makeText(this, "보낼 수 있는 앱이 없어요", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    @Override
+    public void openApp(String extra) {
+        Intent i = new Intent(this, MainActivity.class);
+        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        i.putExtra(extra, true);
+        startActivity(i);
     }
 
     @Override

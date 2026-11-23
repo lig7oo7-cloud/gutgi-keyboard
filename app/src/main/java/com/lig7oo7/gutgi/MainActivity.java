@@ -89,6 +89,11 @@ public class MainActivity extends Activity {
         });
         box.addView(save);
 
+        Button gifPerm = new Button(this);
+        gifPerm.setText("카톡이모티콘 패널에서 내 GIF 보기: 사진 접근 허용");
+        gifPerm.setOnClickListener(v -> requestPermissions(new String[]{GifLibrary.permission()}, 7));
+        box.addView(gifPerm);
+
         EditText test = new EditText(this);
         test.setHint("③ 여기서 연습해 보세요");
         test.setMinLines(4);
@@ -97,6 +102,9 @@ public class MainActivity extends Activity {
         final ScrollView sv = new ScrollView(this);
         sv.addView(box);
         setContentView(sv);
+        if (getIntent().getBooleanExtra("gifperm", false) && !GifLibrary.hasPermission(this)) {
+            requestPermissions(new String[]{GifLibrary.permission()}, 7);
+        }
         if (getIntent().getBooleanExtra("phrases", false)) {
             sv.post(() -> { sv.smoothScrollTo(0, phTitle.getTop()); phrases.requestFocus(); });
         }
