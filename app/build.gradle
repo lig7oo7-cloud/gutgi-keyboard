@@ -1,0 +1,48 @@
+plugins {
+    id 'com.android.application'
+}
+
+def runNumber = Integer.parseInt(System.getenv("GITHUB_RUN_NUMBER") ?: "1")
+
+android {
+    namespace 'com.lig7oo7.gutgi'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.lig7oo7.gutgi"
+        minSdk 26
+        targetSdk 34
+        versionCode runNumber
+        versionName "1.0." + runNumber
+    }
+
+    // 고정 서명키: 새 버전을 받아도 지우지 않고 바로 덮어 설치 가능
+    signingConfigs {
+        fixed {
+            storeFile rootProject.file('keystore/gutgi.keystore')
+            storePassword 'gutgi1234'
+            keyAlias 'gutgi'
+            keyPassword 'gutgi1234'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.fixed
+        }
+        debug {
+            signingConfig signingConfigs.fixed
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    lint {
+        abortOnError false
+        checkReleaseBuilds false
+    }
+}
