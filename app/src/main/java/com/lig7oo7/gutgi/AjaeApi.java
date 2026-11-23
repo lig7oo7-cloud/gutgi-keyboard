@@ -18,22 +18,15 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 
 /**
- * Gemini API로 채팅 캡처를 보내 답장을 '스트리밍'으로 받는다 (첫 답부터 바로 표시).
+  * Gemini API로 채팅 캡처를 보내 평범한 답장 후보를 '스트리밍'으로 받는다 (첫 답부터 바로 표시).
  * 버튼을 눌렀을 때 캡처 이미지 1장만 보낸다. 키보드 입력 내용은 보내지 않는다.
  */
 public class AjaeApi {
 
     public static final String DEFAULT_MODEL = "gemini-3.5-flash-lite";
 
-    public static final String DEFAULT_ROOM =
-            "배달 라이더들 단톡방. 서로 반말, 짧고 툭툭 던지는 말투. " +
-            "은어: 콜(배달 주문), 발(콜 개수, 4발=콜 4개), 픽업, 피크(바쁜 시간), 똥콜(나쁜 콜), 꿀콜(좋은 콜), " +
-            "묶음/단건, 프로모, 대기, 콜사(콜 취소), 지지(GG).";
-
-    public static final String DEFAULT_EXAMPLES =
-            "4발로 가자 → 개여? 네 발로 가게\n" +
-            "오늘 피크 미쳤다 → 피크닉 가는 줄ㅋㅋ 돗자리 챙겨\n" +
-            "똥콜만 잡히네 → 오늘 콜이 장 트러블이네";
+    public static final String DEFAULT_STYLE =
+            "짧고 담백하게. 친한 사이엔 반말, 상대가 존댓말이면 존댓말.";
 
     public interface OnReply { void reply(String type, String text); }
 
@@ -52,26 +45,20 @@ public class AjaeApi {
         String m = prefs(c).getString("geminiModel", "").trim();
         return m.isEmpty() ? DEFAULT_MODEL : m;
     }
-    public static boolean spicy(Context c) { return prefs(c).getBoolean("spicy", true); }
-    public static String room(Context c) { return prefs(c).getString("room", DEFAULT_ROOM); }
-    public static String examples(Context c) { return prefs(c).getString("examples", DEFAULT_EXAMPLES); }
+    public static String style(Context c) { return prefs(c).getString("style", DEFAULT_STYLE); }
 
     static String prompt(Context c) {
-        boolean spicy = spicy(c);
-        return "너는 단톡방에서 제일 웃긴 사람이다. 캡처된 카톡 대화에서 상대가 마지막으로 보낸 말에 받아칠 답장을 만들어라.\n\n" +
-                "[단톡방 분위기]\n" + room(c) + "\n\n" +
-                "[핵심 기법: 일부러 다른 뜻으로 알아듣기]\n" +
-                "상대 말에서 뜻이 두 개인 단어(은어, 숫자+단위, 발음 비슷한 말)를 찾아서, " +
-                "상대가 의도한 뜻이 아닌 '글자 그대로'나 '다른 뜻'으로 알아들은 척 받아친다. " +
-                "설명하지 말고 바로 그 오해를 행동/질문으로 던져야 웃기다.\n\n" +
-                "[이 방에서 웃겼던 예시 — 이런 스타일로]\n" + examples(c) + "\n\n" +
-                "[만들 것]\n" +
-                "- 받아치기 3개: 위 핵심 기법\n" +
-                "- 아재개그 1개: 발음 비슷한 말 말장난\n" +
-                (spicy ? "- 19금 1개: 같은 단어를 은근히 야하게 오해하기. 노골적 묘사 금지\n" : "") +
-                "\n[규칙] 한 줄 25자 이내, 반말, 이모지·해시태그·따옴표·번호·설명 금지. 화면 아래 키보드는 무시.\n" +
-                "출력은 한 줄에 하나씩 '종류|답장' 형식만. 종류는 받아치기/아재개그/19금 중 하나.\n" +
-                "예) 받아치기|개여? 네 발로 가게";
+        return "캡처된 카카오톡 대화에서 상대가 마지막으로 보낸 메시지에 보낼 자연스러운 답장을 만들어라.\n" +
+                "대화 맥락과 두 사람의 관계(말투, 존댓말 여부)를 보고 내가 실제로 보낼 법한 평범한 문자로.\n" +
+                "농담·과장·이모지·해시태그는 쓰지 마.\n\n" +
+                "[내 말투]\n" + style(c) + "\n\n" +
+                "[만들 것] 서로 다른 답장 4개\n" +
+                "- 짧게: 한두 마디 대답\n" +
+                "- 공감: 상대 말에 맞장구\n" +
+                "- 질문: 대화를 이어가는 물음\n" +
+                "- 정중: 조금 더 예의 있게\n" +
+                "[규칙] 한 줄 40자 이내, 따옴표·번호·설명 금지. 화면 아래 키보드는 무시.\n" +
+                "출력은 한 줄에 하나씩 '종류|답장' 형식만. 예) 짧게|응 알겠어";
     }
 
     /** 블로킹 호출. 답장이 한 줄 완성될 때마다 onReply 호출 (작업 스레드) */
@@ -109,7 +96,7 @@ public class AjaeApi {
                     .put(new JSONObject().put("inline_data",
                             new JSONObject().put("mime_type", "image/jpeg").put("data", b64)));
             body.put("contents", new JSONArray().put(new JSONObject().put("parts", parts)));
-            JSONObject gen = new JSONObject().put("temperature", 1.1).put("maxOutputTokens", 400);
+            JSONObject gen = new JSONObject().put("temperature", 0.7).put("maxOutputTokens", 400);
             if (fastThinking) gen.put("thinkingConfig", new JSONObject().put("thinkingLevel", "minimal"));
             body.put("generationConfig", gen);
             JSONArray safety = new JSONArray();

@@ -87,7 +87,7 @@ public class ExtraPanels {
         IconView ajae = new IconView(ctx, IconView.AJAE);
         ajae.setBackground(round(0xFFFFF3C4));
         ajae.setOnClickListener(v -> host.startAjae());
-        ajae.setOnLongClickListener(v -> { Toast.makeText(ctx, "아재개그 답장 (화면 공유 → Gemini)", Toast.LENGTH_SHORT).show(); return true; });
+        ajae.setOnLongClickListener(v -> { Toast.makeText(ctx, "AI 답장 추천 (화면 공유)", Toast.LENGTH_SHORT).show(); return true; });
         LinearLayout.LayoutParams alp = new LinearLayout.LayoutParams(px(40), px(36));
         alp.setMargins(px(2), 0, px(2), 0);
         bar.addView(ajae, alp);
@@ -152,7 +152,7 @@ public class ExtraPanels {
                     v -> { host.insertText(text); AjaeBus.clear(); showKeyboard(); }, null));
         }
         if (st == AjaeBus.LOADING) {
-            col.addView(note(AjaeBus.replies.isEmpty() ? "🤔 드립 짜는 중…" : "더 만드는 중…"));
+            col.addView(note(AjaeBus.replies.isEmpty() ? "✍ 답장 만드는 중…" : "더 만드는 중…"));
         } else if (st == AjaeBus.DONE && AjaeBus.replies.isEmpty()) {
             col.addView(note("⚠ " + (AjaeBus.error != null ? AjaeBus.error : "답을 받지 못했어요")));
             if (AjaeBus.keyProblem) {

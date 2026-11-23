@@ -21,7 +21,7 @@ public class IconView extends View {
         p.setStyle(Paint.Style.STROKE);
         p.setStrokeCap(Paint.Cap.ROUND);
         p.setStrokeJoin(Paint.Join.ROUND);
-        String[] desc = {"복사", "잘라내기", "붙여넣기", "Gemini", "복사 기록", "상용구", "아재개그 답장"};
+        String[] desc = {"복사", "잘라내기", "붙여넣기", "Gemini", "복사 기록", "상용구", "AI 답장 추천"};
         setContentDescription(desc[kind]);
     }
 

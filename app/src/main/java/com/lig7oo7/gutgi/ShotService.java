@@ -220,7 +220,7 @@ public class ShotService extends Service {
                 PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
         Notification n = new Notification.Builder(this, CHANNEL)
                 .setSmallIcon(android.R.drawable.ic_menu_camera)
-                .setContentTitle("아재개그 답장 준비됨")
+                .setContentTitle("AI 답장 준비됨")
                 .setContentText("10분 동안 화면 공유 없이 바로 답장 (안 쓰면 자동 종료)")
                 .addAction(new Notification.Action.Builder(null, "지금 끄기", stop).build())
                 .build();
