@@ -37,6 +37,7 @@ public class ExtraPanels {
     private static final int TEXT = 0xFF37474F;
     private static final int SUB = 0xFF7D8892;
     private static final int ACTIVE = 0xFFB2DFDB;
+    private static final int PINNED = 0xFFE0F2F1;
 
     private final Context ctx;
     private final Host host;
@@ -333,16 +334,59 @@ public class ExtraPanels {
     private final java.util.Map<Integer, java.util.ArrayList<String>> shown = new java.util.HashMap<>();
     private final java.util.Map<Integer, java.util.ArrayDeque<String>> pools = new java.util.HashMap<>();
 
+    private static final int PIN_COUNT = 2;   // 이 횟수 이상 쓴 단어는 자리 고정
+    private java.util.Map<String, Integer> usage;
+
+    private java.util.Map<String, Integer> usage() {
+        if (usage == null) {
+            usage = new java.util.HashMap<>();
+            for (String e : Store.load(ctx, "wordUsage")) {
+                int i = e.lastIndexOf('\t');
+                if (i > 0) try { usage.put(e.substring(0, i), Integer.parseInt(e.substring(i + 1))); } catch (Exception ignored) { }
+            }
+        }
+        return usage;
+    }
+
+    private int countUse(String word) {
+        java.util.Map<String, Integer> u = usage();
+        int n = (u.containsKey(word) ? u.get(word) : 0) + 1;
+        u.put(word, n);
+        java.util.List<String> out = new java.util.ArrayList<>();
+        for (java.util.Map.Entry<String, Integer> e : u.entrySet()) out.add(e.getKey() + "\t" + e.getValue());
+        Store.save(ctx, "wordUsage", out);
+        return n;
+    }
+
+    private boolean pinned(String word) {
+        Integer n = usage().get(word);
+        return n != null && n >= PIN_COUNT;
+    }
+
+    /** 칸 배치를 저장해서 키보드를 다시 열어도 그대로 */
+    private void saveLayout(int cat) {
+        Store.save(ctx, "shown_" + cat, shown.get(cat));
+        Store.save(ctx, "pool_" + cat, new java.util.ArrayList<>(pools.get(cat)));
+    }
+
     private java.util.ArrayList<String> shownFor(int cat) {
         java.util.ArrayList<String> l = shown.get(cat);
         if (l == null) {
             java.util.List<String> hidden = Store.load(ctx, "hiddenWords");
+            java.util.List<String> savedShown = Store.load(ctx, "shown_" + cat);
+            java.util.List<String> savedPool = Store.load(ctx, "pool_" + cat);
             java.util.ArrayDeque<String> pool = new java.util.ArrayDeque<>();
-            for (String w : Words.ALL[cat].pool) if (!hidden.contains(w)) pool.add(w);
             l = new java.util.ArrayList<>();
-            for (String w : Words.ALL[cat].base) {
-                if (!hidden.contains(w)) l.add(w);
-                else l.add(pool.isEmpty() ? "" : pool.poll());
+            if (savedShown.size() == 20) {
+                for (String w : savedPool) if (!hidden.contains(w)) pool.add(w);
+                for (String w : savedShown) l.add(hidden.contains(w) ? "" : w);
+                for (int i = 0; i < l.size(); i++) if (l.get(i).isEmpty() && !pool.isEmpty()) l.set(i, pool.poll());
+            } else {
+                for (String w : Words.ALL[cat].pool) if (!hidden.contains(w)) pool.add(w);
+                for (String w : Words.ALL[cat].base) {
+                    if (!hidden.contains(w)) l.add(w);
+                    else l.add(pool.isEmpty() ? "" : pool.poll());
+                }
             }
             shown.put(cat, l);
             pools.put(cat, pool);
@@ -377,6 +421,8 @@ public class ExtraPanels {
         if (!hidden.contains(word)) hidden.add(word);
         Store.save(ctx, "hiddenWords", hidden);
         w.setText(rotate(cat, index, false));
+        w.setBackground(round(CHIP));
+        saveLayout(cat);
         Toast.makeText(ctx, "'" + word + "' 숨김 (앱 화면에서 복구 가능)", Toast.LENGTH_SHORT).show();
     }
 
@@ -386,7 +432,7 @@ public class ExtraPanels {
         col.setPadding(px(4), px(2), px(4), px(4));
 
         TextView hint = new TextView(ctx);
-        hint.setText("누르면 입력 → 카톡 이모티콘 추천 · 추천이 안 뜨는 단어는 길게 눌러 숨기기");
+        hint.setText("누르면 입력 · 2번 쓴 단어는 고정(초록) · 안 뜨는 단어는 길게 눌러 숨김");
         hint.setTextSize(11);
         hint.setTextColor(SUB);
         hint.setSingleLine(true);
@@ -426,11 +472,17 @@ public class ExtraPanels {
                 final int index = r * 4 + c;
                 final TextView w = chip(words.get(index), 15);
                 w.setTypeface(Typeface.DEFAULT_BOLD);
+                if (pinned(words.get(index))) w.setBackground(round(PINNED));
                 w.setOnClickListener(v -> {
                     String word = shownFor(cat).get(index);
                     if (word.isEmpty()) return;
                     host.replaceWord(word);
+                    if (countUse(word) >= PIN_COUNT) {
+                        w.setBackground(round(PINNED));   // 자주 쓰는 단어: 자리 고정
+                        return;
+                    }
                     w.setText(rotate(cat, index, true));
+                    saveLayout(cat);
                 });
                 w.setOnLongClickListener(v -> { hideWord(cat, index, w); return true; });
                 LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f);
