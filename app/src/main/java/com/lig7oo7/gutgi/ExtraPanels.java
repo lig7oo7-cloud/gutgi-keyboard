@@ -44,7 +44,7 @@ public class ExtraPanels {
     private final View keyboard;
     private final FrameLayout content;
     private final LinearLayout root;
-    private final TextView[] tabs = new TextView[4];
+    private final View[] tabs = new View[4];
     private int open = -1;   // 열린 패널 (-1 = 키보드)
 
     public ExtraPanels(Context ctx, Host host, View keyboard) {
@@ -60,12 +60,21 @@ public class ExtraPanels {
         LinearLayout bar = new LinearLayout(ctx);
         bar.setOrientation(LinearLayout.HORIZONTAL);
         bar.setPadding(px(4), px(4), px(4), px(2));
-        String[] names = {"✦ Gemini", "📋 기록", "📝 상용구", "🎯 상황어"};
+        int[] tabIcons = {IconView.GEMINI, IconView.HISTORY, IconView.PHRASE};
         for (int i = 0; i < 4; i++) {
             final int idx = i;
-            TextView t = chip(names[i], 12.5f);
-            t.setPadding(px(3), 0, px(3), 0);
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, px(36), 1f);
+            View t;
+            LinearLayout.LayoutParams lp;
+            if (i < 3) {
+                t = new IconView(ctx, tabIcons[i]);
+                lp = new LinearLayout.LayoutParams(px(40), px(36));
+            } else {
+                TextView tv = chip("🎯 상황어", 13);
+                tv.setTypeface(Typeface.DEFAULT_BOLD);
+                t = tv;
+                lp = new LinearLayout.LayoutParams(0, px(36), 1f);
+            }
+            t.setBackground(round(CHIP));
             lp.setMargins(px(2), 0, px(2), 0);
             bar.addView(t, lp);
             t.setOnClickListener(v -> onTab(idx));
@@ -78,6 +87,7 @@ public class ExtraPanels {
             final int id = ids[i];
             IconView iv = new IconView(ctx, kinds[i]);
             iv.setBackground(round(0xFFD3D7DC));
+            iv.setOnLongClickListener(v -> { Toast.makeText(ctx, iv.getContentDescription(), Toast.LENGTH_SHORT).show(); return true; });
             iv.setOnClickListener(v -> host.contextAction(id));
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(px(38), px(36));
             lp.setMargins(px(2), 0, px(2), 0);
@@ -131,7 +141,7 @@ public class ExtraPanels {
         open = -1;
         content.removeAllViews();
         content.addView(keyboard);
-        for (TextView t : tabs) t.setBackground(round(CHIP));
+        for (View t : tabs) t.setBackground(round(CHIP));
     }
 
     private void showPanel(int idx, View panel) {
@@ -326,15 +336,22 @@ public class ExtraPanels {
     private java.util.ArrayList<String> shownFor(int cat) {
         java.util.ArrayList<String> l = shown.get(cat);
         if (l == null) {
-            l = new java.util.ArrayList<>(java.util.Arrays.asList(Words.ALL[cat].base));
+            java.util.List<String> hidden = Store.load(ctx, "hiddenWords");
+            java.util.ArrayDeque<String> pool = new java.util.ArrayDeque<>();
+            for (String w : Words.ALL[cat].pool) if (!hidden.contains(w)) pool.add(w);
+            l = new java.util.ArrayList<>();
+            for (String w : Words.ALL[cat].base) {
+                if (!hidden.contains(w)) l.add(w);
+                else l.add(pool.isEmpty() ? "" : pool.poll());
+            }
             shown.put(cat, l);
-            pools.put(cat, new java.util.ArrayDeque<>(java.util.Arrays.asList(Words.ALL[cat].pool)));
+            pools.put(cat, pool);
         }
         return l;
     }
 
-    /** 누른 칸을 예비 풀의 새 단어로 교체 (화면에 이미 있는 단어는 건너뜀), 누른 단어는 풀 맨 뒤로 */
-    private String rotate(int cat, int index) {
+    /** 누른 칸을 예비 풀의 새 단어로 교체. keepUsed=false 면 누른 단어는 풀로 돌려보내지 않음(숨김) */
+    private String rotate(int cat, int index, boolean keepUsed) {
         java.util.ArrayList<String> l = shownFor(cat);
         java.util.ArrayDeque<String> pool = pools.get(cat);
         String used = l.get(index);
@@ -344,10 +361,23 @@ public class ExtraPanels {
             if (!l.contains(c)) { next = c; break; }
             pool.add(c);
         }
-        if (next == null) return used;
-        pool.add(used);
+        if (next == null) {
+            if (keepUsed) return used;
+            next = "";   // 예비 단어가 다 떨어지면 빈칸
+        }
+        if (keepUsed) pool.add(used);
         l.set(index, next);
         return next;
+    }
+
+    private void hideWord(int cat, int index, TextView w) {
+        String word = shownFor(cat).get(index);
+        if (word.isEmpty()) return;
+        java.util.List<String> hidden = Store.load(ctx, "hiddenWords");
+        if (!hidden.contains(word)) hidden.add(word);
+        Store.save(ctx, "hiddenWords", hidden);
+        w.setText(rotate(cat, index, false));
+        Toast.makeText(ctx, "'" + word + "' 숨김 (앱 화면에서 복구 가능)", Toast.LENGTH_SHORT).show();
     }
 
     private View emotionPanel() {
@@ -356,7 +386,7 @@ public class ExtraPanels {
         col.setPadding(px(4), px(2), px(4), px(4));
 
         TextView hint = new TextView(ctx);
-        hint.setText("누르면 입력 → 카톡이 어울리는 이모티콘 추천 · 이어 누르면 앞 단어 교체");
+        hint.setText("누르면 입력 → 카톡 이모티콘 추천 · 추천이 안 뜨는 단어는 길게 눌러 숨기기");
         hint.setTextSize(11);
         hint.setTextColor(SUB);
         hint.setSingleLine(true);
@@ -397,9 +427,12 @@ public class ExtraPanels {
                 final TextView w = chip(words.get(index), 15);
                 w.setTypeface(Typeface.DEFAULT_BOLD);
                 w.setOnClickListener(v -> {
-                    host.replaceWord(shownFor(cat).get(index));
-                    w.setText(rotate(cat, index));
+                    String word = shownFor(cat).get(index);
+                    if (word.isEmpty()) return;
+                    host.replaceWord(word);
+                    w.setText(rotate(cat, index, true));
                 });
+                w.setOnLongClickListener(v -> { hideWord(cat, index, w); return true; });
                 LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f);
                 lp.setMargins(px(2), px(2), px(2), px(2));
                 row.addView(w, lp);

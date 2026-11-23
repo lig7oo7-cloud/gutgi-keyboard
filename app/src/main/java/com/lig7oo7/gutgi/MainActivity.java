@@ -89,6 +89,14 @@ public class MainActivity extends Activity {
         });
         box.addView(save);
 
+        Button unhide = new Button(this);
+        unhide.setText("🎯 상황어: 숨긴 단어 모두 복구");
+        unhide.setOnClickListener(v -> {
+            Store.save(this, "hiddenWords", new java.util.ArrayList<>());
+            android.widget.Toast.makeText(this, "복구했어요 (키보드를 다시 열면 적용)", android.widget.Toast.LENGTH_SHORT).show();
+        });
+        box.addView(unhide);
+
         EditText test = new EditText(this);
         test.setHint("③ 여기서 연습해 보세요");
         test.setMinLines(4);

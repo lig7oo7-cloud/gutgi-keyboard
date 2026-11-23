@@ -8,7 +8,7 @@ import android.view.View;
 
 /** 복사·잘라내기·붙여넣기 아이콘을 직접 그린다 (폰 글꼴에 상관없이 똑같이 보이게) */
 public class IconView extends View {
-    public static final int COPY = 0, CUT = 1, PASTE = 2;
+    public static final int COPY = 0, CUT = 1, PASTE = 2, GEMINI = 3, HISTORY = 4, PHRASE = 5;
 
     private final int kind;
     private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -21,7 +21,7 @@ public class IconView extends View {
         p.setStyle(Paint.Style.STROKE);
         p.setStrokeCap(Paint.Cap.ROUND);
         p.setStrokeJoin(Paint.Join.ROUND);
-        String[] desc = {"복사", "잘라내기", "붙여넣기"};
+        String[] desc = {"복사", "잘라내기", "붙여넣기", "Gemini", "복사 기록", "상용구"};
         setContentDescription(desc[kind]);
     }
 
@@ -60,6 +60,40 @@ public class IconView extends View {
                 c.drawLine(cx - u * 1.1f, cy - u * 0.4f, cx + u * 1.1f, cy - u * 0.4f, p);
                 c.drawLine(cx - u * 1.1f, cy + u * 0.7f, cx + u * 1.1f, cy + u * 0.7f, p);
                 c.drawLine(cx - u * 1.1f, cy + u * 1.8f, cx + u * 0.3f, cy + u * 1.8f, p);
+                break;
+            }
+            case GEMINI: {
+                // 네 갈래 반짝이 별 (파랑)
+                p.setStyle(Paint.Style.FILL);
+                p.setColor(0xFF4285F4);
+                android.graphics.Path s = new android.graphics.Path();
+                float R = u * 3.0f, k = u * 0.45f;
+                s.moveTo(cx, cy - R);
+                s.quadTo(cx + k, cy - k, cx + R, cy);
+                s.quadTo(cx + k, cy + k, cx, cy + R);
+                s.quadTo(cx - k, cy + k, cx - R, cy);
+                s.quadTo(cx - k, cy - k, cx, cy - R);
+                c.drawPath(s, p);
+                p.setColor(0xFF455A64);
+                break;
+            }
+            case HISTORY: {
+                // 시계 (복사 기록)
+                c.drawCircle(cx, cy, u * 2.6f, p);
+                c.drawLine(cx, cy, cx, cy - u * 1.6f, p);
+                c.drawLine(cx, cy, cx + u * 1.2f, cy + u * 0.7f, p);
+                break;
+            }
+            case PHRASE: {
+                // 말풍선 + 줄 (상용구)
+                android.graphics.Path b = new android.graphics.Path();
+                r.set(cx - u * 2.8f, cy - u * 2.2f, cx + u * 2.8f, cy + u * 1.4f);
+                b.addRoundRect(r, u * 0.8f, u * 0.8f, android.graphics.Path.Direction.CW);
+                c.drawPath(b, p);
+                c.drawLine(cx - u * 1.2f, cy + u * 1.4f, cx - u * 1.8f, cy + u * 2.8f, p);
+                c.drawLine(cx - u * 1.8f, cy + u * 2.8f, cx - u * 0.2f, cy + u * 1.4f, p);
+                c.drawLine(cx - u * 1.6f, cy - u * 0.9f, cx + u * 1.6f, cy - u * 0.9f, p);
+                c.drawLine(cx - u * 1.6f, cy + u * 0.2f, cx + u * 0.6f, cy + u * 0.2f, p);
                 break;
             }
         }
