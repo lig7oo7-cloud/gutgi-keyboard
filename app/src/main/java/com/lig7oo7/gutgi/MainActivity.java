@@ -91,7 +91,11 @@ public class MainActivity extends Activity {
 
         Button gifPerm = new Button(this);
         gifPerm.setText("카톡이모티콘 패널에서 내 GIF 보기: 사진 접근 허용");
-        gifPerm.setOnClickListener(v -> requestPermissions(new String[]{GifLibrary.permission()}, 7));
+        gifPerm.setOnClickListener(v -> {
+            if (GifLibrary.permissionState(this) == 0) requestPermissions(new String[]{GifLibrary.permission()}, 7);
+            else startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    android.net.Uri.parse("package:" + getPackageName())));
+        });
         box.addView(gifPerm);
 
         EditText test = new EditText(this);
@@ -102,7 +106,11 @@ public class MainActivity extends Activity {
         final ScrollView sv = new ScrollView(this);
         sv.addView(box);
         setContentView(sv);
-        if (getIntent().getBooleanExtra("gifperm", false) && !GifLibrary.hasPermission(this)) {
+        if (getIntent().getBooleanExtra("appsettings", false)) {
+            startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    android.net.Uri.parse("package:" + getPackageName())));
+        }
+        if (getIntent().getBooleanExtra("gifperm", false) && GifLibrary.permissionState(this) != 2) {
             requestPermissions(new String[]{GifLibrary.permission()}, 7);
         }
         if (getIntent().getBooleanExtra("phrases", false)) {

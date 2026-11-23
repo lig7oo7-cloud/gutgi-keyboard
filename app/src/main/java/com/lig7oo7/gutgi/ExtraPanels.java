@@ -319,14 +319,26 @@ public class ExtraPanels {
         d.setTextColor(host.acceptsGif() ? 0xFF00897B : 0xFFE65100);
         col.addView(d);
 
-        if (!GifLibrary.hasPermission(ctx)) {
-            col.addView(buttonRow(new String[]{"내 GIF 보려면: 사진 접근 허용"}, new View.OnClickListener[]{
+        int perm = GifLibrary.permissionState(ctx);
+        if (perm == 0) {
+            col.addView(note("⚠ 사진 접근 권한이 없어서 내 GIF를 못 읽어요."));
+            col.addView(buttonRow(new String[]{"사진 접근 허용하러 가기"}, new View.OnClickListener[]{
                     v -> host.openApp("gifperm")}));
             return;
         }
         final List<GifLibrary.Item> all = GifLibrary.load(ctx);
+        TextView info = note("권한: " + (perm == 2 ? "전체 허용" : "일부 사진만 ⚠") +
+                " · 폰에서 보이는 GIF " + GifLibrary.lastGifTotal + "개 · EmotionGif " + all.size() + "개" +
+                (GifLibrary.lastError != null ? "\n오류: " + GifLibrary.lastError : ""));
+        col.addView(info);
+        if (perm == 1) {
+            col.addView(buttonRow(new String[]{"'모두 허용'으로 바꾸기 (설정 열기)"}, new View.OnClickListener[]{
+                    v -> host.openApp("appsettings")}));
+        }
+        col.addView(buttonRow(new String[]{"↻ 새로고침"}, new View.OnClickListener[]{
+                v -> showPanel(3, emotionPanel())}));
         if (all.isEmpty()) {
-            col.addView(note("저장된 GIF가 없어요. 'GIF 캡처' 앱으로 만들면 여기 보여요."));
+            col.addView(note("EmotionGif 폴더의 GIF를 못 찾았어요."));
             return;
         }
         // 태그 필터

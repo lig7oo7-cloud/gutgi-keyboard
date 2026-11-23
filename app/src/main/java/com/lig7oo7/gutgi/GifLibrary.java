@@ -45,30 +45,44 @@ public class GifLibrary {
                 "android.permission.READ_MEDIA_VISUAL_USER_SELECTED") == PackageManager.PERMISSION_GRANTED);
     }
 
+    /** 권한 상태: 0 없음, 1 일부 사진만, 2 전체 */
+    public static int permissionState(Context c) {
+        if (c.checkSelfPermission(permission()) == PackageManager.PERMISSION_GRANTED) return 2;
+        if (Build.VERSION.SDK_INT >= 34 && c.checkSelfPermission(
+                "android.permission.READ_MEDIA_VISUAL_USER_SELECTED") == PackageManager.PERMISSION_GRANTED) return 1;
+        return 0;
+    }
+
+    public static String lastError = null;
+    public static int lastGifTotal = 0;   // 폰 전체에서 보이는 GIF 수 (진단용)
+
     public static List<Item> load(Context c) {
         List<Item> out = new ArrayList<>();
+        lastError = null;
+        lastGifTotal = 0;
         if (!hasPermission(c)) return out;
         Uri base = MediaStore.Images.Media.EXTERNAL_CONTENT_URI;
-        String[] proj = {MediaStore.Images.Media._ID, MediaStore.Images.Media.DISPLAY_NAME};
-        String sel;
-        String[] args;
-        if (Build.VERSION.SDK_INT >= 29) {
-            sel = MediaStore.Images.Media.RELATIVE_PATH + " LIKE ? AND " + MediaStore.Images.Media.MIME_TYPE + "=?";
-            args = new String[]{"Pictures/" + FOLDER + "%", "image/gif"};
-        } else {
-            sel = MediaStore.Images.Media.DATA + " LIKE ?";
-            args = new String[]{"%/Pictures/" + FOLDER + "/%.gif"};
-        }
+        // 폴더 조건 없이 GIF 전체를 가져온 뒤, 폴더/파일명으로 직접 거른다 (제조사별 경로 차이 대비)
+        String[] proj = Build.VERSION.SDK_INT >= 29
+                ? new String[]{MediaStore.Images.Media._ID, MediaStore.Images.Media.DISPLAY_NAME, MediaStore.Images.Media.RELATIVE_PATH}
+                : new String[]{MediaStore.Images.Media._ID, MediaStore.Images.Media.DISPLAY_NAME, MediaStore.Images.Media.DATA};
+        String sel = MediaStore.Images.Media.MIME_TYPE + "=? OR " + MediaStore.Images.Media.DISPLAY_NAME + " LIKE ?";
+        String[] args = {"image/gif", "%.gif"};
         try (Cursor cur = c.getContentResolver().query(base, proj, sel, args,
                 MediaStore.Images.Media.DATE_ADDED + " DESC")) {
-            if (cur == null) return out;
+            if (cur == null) { lastError = "목록을 읽을 수 없음"; return out; }
             while (cur.moveToNext()) {
+                lastGifTotal++;
                 long id = cur.getLong(0);
                 String name = cur.getString(1);
+                String path = cur.getString(2);
                 if (name == null) continue;
-                out.add(new Item(ContentUris.withAppendedId(base, id), name));
+                boolean inFolder = path != null && path.contains(FOLDER);
+                if (inFolder) out.add(new Item(ContentUris.withAppendedId(base, id), name));
             }
-        } catch (Exception ignored) { }
+        } catch (Exception e) {
+            lastError = e.getClass().getSimpleName() + ": " + e.getMessage();
+        }
         return out;
     }
 
