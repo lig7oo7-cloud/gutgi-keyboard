@@ -54,12 +54,31 @@ public class GutgiIME extends InputMethodService implements KeyboardView.Listene
         super.onDestroy();
     }
 
+    // ───────── 자판 고르기 (세로 = 딩굴, 가로 = 옵션: 딩굴/쿼티, 가운데 분리) ─────────
+    private boolean hanQwerty, autoShift;
+    private String builtSig;
+
+    private void buildRows() {
+        boolean land = getResources().getConfiguration().orientation
+                == android.content.res.Configuration.ORIENTATION_LANDSCAPE;
+        boolean split = land && Prefs.landSplit, ss = split && Prefs.landSplitSpace;
+        boolean q = land && Prefs.landQwerty;
+        String sig = land + "|" + split + "|" + ss + "|" + q;
+        if (sig.equals(builtSig) && hanRows != null) return;
+        builtSig = sig;
+        hanQwerty = q;
+        hc.strict = q;
+        hanRows = q ? Layouts.hangulQwerty(split, ss) : Layouts.hangul(split, ss);
+        engRows = Layouts.english(split, ss);
+        symRows = Layouts.symbols(split, ss);
+    }
+
     @Override
     public View onCreateInputView() {
-        hanRows = Layouts.hangul();
-        engRows = Layouts.english();
-        symRows = Layouts.symbols();
+        Prefs.load(this);
         Theme.load(this);
+        builtSig = null;
+        buildRows();
         view = new KeyboardView(this);
         view.setListener(this);
         panels = new ExtraPanels(this, this, view);
@@ -142,7 +161,14 @@ public class GutgiIME extends InputMethodService implements KeyboardView.Listene
         int var = ei == null ? 0 : ei.inputType & InputType.TYPE_MASK_VARIATION;
         boolean email = var == InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS
                 || var == InputType.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS;
-        panels.setSuggestions(tok, Suggest.compute(tok, email, dict(), java.util.Arrays.asList(Dict.DOMAINS), usageMap(), rates()));
+        java.util.List<Suggest.Item> items = Suggest.compute(tok, email, dict(), java.util.Arrays.asList(Dict.DOMAINS), usageMap(), rates());
+        String sc = tok.isEmpty() ? null : shortcutMap().get(tok);
+        if (sc != null) {                                   // 단축어: 맨 앞 칩으로
+            items = new java.util.ArrayList<>(items);
+            String lbl = sc.replace('\n', ' ');
+            items.add(0, new Suggest.Item("⚡ " + (lbl.length() > 14 ? lbl.substring(0, 14) + "…" : lbl), sc, tok.length(), null, true));
+        }
+        panels.setSuggestions(tok, items);
     }
 
     /** 추천 칩 선택: 입력 중이던 조각(조합 중인 글자 포함)을 지우고 완성 단어로 바꾼다 */
@@ -422,13 +448,94 @@ public class GutgiIME extends InputMethodService implements KeyboardView.Listene
         return ic == null ? null : ic.getSelectedText(0);
     }
 
+    // ───────── 단축어 (옵션창에서 등록: 단축어 + 스페이스 → 문구) ─────────
+    private java.util.Map<String, String> shortcuts;
+
+    private java.util.Map<String, String> shortcutMap() {
+        if (shortcuts == null) shortcuts = Prefs.shortcuts(this);
+        return shortcuts;
+    }
+
+    private boolean expandShortcut(InputConnection ic) {
+        if (isPrivateField() || shortcutMap().isEmpty()) return false;
+        String tok = Suggest.token(ic.getTextBeforeCursor(40, 0));
+        String v = tok.isEmpty() ? null : shortcutMap().get(tok);
+        if (v == null) return false;
+        ic.beginBatchEdit();
+        ic.deleteSurroundingText(tok.length(), 0);
+        ic.commitText(v + " ", 1);
+        ic.endBatchEdit();
+        return true;
+    }
+
+    // ───────── 네이버 검색: 선택한 글 → 없으면 입력칸에 쓴 글 전체 ─────────
+    @Override
+    public void naverSearch() {
+        InputConnection ic = getCurrentInputConnection();
+        if (ic == null) return;
+        commitComposing();
+        CharSequence sel = ic.getSelectedText(0);
+        String q = sel == null ? "" : sel.toString();
+        if (q.trim().isEmpty()) {
+            ExtractedText et = ic.getExtractedText(new ExtractedTextRequest(), 0);
+            if (et != null && et.text != null) q = et.text.toString();
+            else {
+                CharSequence b = ic.getTextBeforeCursor(2000, 0), a = ic.getTextAfterCursor(2000, 0);
+                q = (b == null ? "" : b) + "" + (a == null ? "" : a);
+            }
+        }
+        q = q.trim();
+        if (q.isEmpty()) { Toast.makeText(this, "검색할 글을 먼저 써 주세요", Toast.LENGTH_SHORT).show(); return; }
+        if (q.length() > 300) q = q.substring(0, 300);
+        String url;
+        try { url = "https://m.search.naver.com/search.naver?query=" + java.net.URLEncoder.encode(q, "UTF-8"); }
+        catch (Exception e) { return; }
+        Intent i = new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url));
+        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        try {
+            i.setPackage("com.nhn.android.search");        // 네이버 앱이 있으면 앱으로
+            startActivity(i);
+        } catch (Exception e) {
+            try { i.setPackage(null); startActivity(i); }  // 없으면 기본 브라우저
+            catch (Exception e2) { Toast.makeText(this, "브라우저를 열 수 없어요", Toast.LENGTH_SHORT).show(); }
+        }
+    }
+
+    private void openOptions() {
+        commitComposing();
+        requestHideSelf(0);
+        Intent i = new Intent(this, SettingsActivity.class);
+        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        try { startActivity(i); } catch (Exception ignored) { }
+    }
+
+    /** 영어: 문장 첫 글자면 자동으로 대문자 한 번 (옵션) */
+    private void updateAutoCap() {
+        if (view == null) return;
+        InputConnection ic = getCurrentInputConnection();
+        EditorInfo ei = getCurrentInputEditorInfo();
+        boolean ok = mode == ENG && Prefs.autoCap && ic != null && ei != null && !isPrivateField()
+                && (ei.inputType & InputType.TYPE_MASK_CLASS) == InputType.TYPE_CLASS_TEXT;
+        if (ok) {
+            int var = ei.inputType & InputType.TYPE_MASK_VARIATION;
+            ok = var != InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS && var != InputType.TYPE_TEXT_VARIATION_URI
+                    && var != InputType.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS;
+        }
+        if (shift == 2) return;
+        boolean cap = ok && ic.getCursorCapsMode(android.text.TextUtils.CAP_MODE_SENTENCES) != 0;
+        if (cap && shift == 0) { shift = 1; autoShift = true; view.setShift(1); }
+        else if (!cap && shift == 1 && autoShift) { shift = 0; autoShift = false; view.setShift(0); }
+    }
+
     @Override
     public boolean onEvaluateFullscreenMode() { return false; }
 
     @Override
     public void onStartInputView(EditorInfo info, boolean restarting) {
         super.onStartInputView(info, restarting);
-        if (Theme.load(this) && view != null) setInputView(onCreateInputView());   // 다크 모드·키 높이 변경 반영
+        boolean changed = Theme.load(this) | Prefs.load(this);
+        if (changed && view != null) setInputView(onCreateInputView());   // 옵션창 변경(다크·크기·자판·툴바) 반영
+        shortcuts = null;
         hc.reset();
         shift = 0;
         if (panels != null) {
@@ -452,7 +559,9 @@ public class GutgiIME extends InputMethodService implements KeyboardView.Listene
         } else {
             mode = langMode;
         }
+        autoShift = false;
         applyLayout();
+        updateAutoCap();
     }
 
     @Override
@@ -478,8 +587,9 @@ public class GutgiIME extends InputMethodService implements KeyboardView.Listene
 
     private void applyLayout() {
         if (view == null) return;
+        buildRows();
         view.setRows(mode == HAN ? hanRows : mode == ENG ? engRows : symRows);
-        view.setShift(mode == ENG ? shift : 0);
+        view.setShift(mode == ENG || (mode == HAN && hanQwerty) ? shift : 0);
         view.setBackLabel(langMode == HAN ? "ㄱㄴㄷ" : "abc");
         EditorInfo ei = getCurrentInputEditorInfo();
         view.setEnterSearch(ei != null
@@ -507,6 +617,7 @@ public class GutgiIME extends InputMethodService implements KeyboardView.Listene
                     if (sel != null && sel.length() > 0) ic.commitText("", 1);
                     else sendDownUpKeyEvents(KeyEvent.KEYCODE_DEL);
                 }
+                ui.post(this::updateAutoCap);
                 return;
             case "@STROKE":
                 if (mode == HAN && hc.addStroke()) ic.setComposingText(hc.current(), 1);
@@ -575,10 +686,25 @@ public class GutgiIME extends InputMethodService implements KeyboardView.Listene
                 learnBeforeCursor(ic);
                 handleEnter(ic);
                 return;
-            case "@SPACE":
+            case "@SPACE": {
                 commitComposing();
+                if (expandShortcut(ic)) return;
                 learnBeforeCursor(ic);
-                ic.commitText(" ", 1);
+                CharSequence b2 = ic.getTextBeforeCursor(2, 0);
+                if (Prefs.doubleSpace && b2 != null && b2.length() == 2 && b2.charAt(1) == ' '
+                        && Character.isLetterOrDigit(b2.charAt(0))) {
+                    ic.beginBatchEdit();                      // 스페이스 두 번 → ". "
+                    ic.deleteSurroundingText(1, 0);
+                    ic.commitText(". ", 1);
+                    ic.endBatchEdit();
+                } else {
+                    ic.commitText(" ", 1);
+                }
+                updateAutoCap();
+                return;
+            }
+            case "@OPTIONS":
+                openOptions();
                 return;
             case "@LEFT":
                 commitComposing();
@@ -595,24 +721,37 @@ public class GutgiIME extends InputMethodService implements KeyboardView.Listene
                 return;
             case "@LANG":
                 commitComposing();
-                langMode = (mode == HAN) ? ENG : HAN;
-                mode = langMode;
+                if (Prefs.globeCycle) {               // 한 → 영 → 숫자 → 한
+                    if (mode == HAN) { langMode = ENG; mode = ENG; }
+                    else if (mode == ENG) mode = SYM;
+                    else { langMode = HAN; mode = HAN; }
+                } else {
+                    langMode = (mode == HAN) ? ENG : HAN;
+                    mode = langMode;
+                }
                 shift = 0;
+                autoShift = false;
                 applyLayout();
+                updateAutoCap();
                 return;
             case "@SHIFT": {
                 long now = System.currentTimeMillis();
                 if (shift == 0) shift = (now - lastShiftTap < 350) ? 2 : 1;
                 else shift = 0;
                 lastShiftTap = now;
+                autoShift = false;
                 view.setShift(shift);
                 return;
             }
         }
 
+        if (mode == HAN && hanQwerty && shift > 0 && t.length() == 1) {   // 두벌식 시프트: ㅂ→ㅃ, ㅐ→ㅒ
+            t = Layouts.dubeolShift(t);
+            if (shift == 1) { shift = 0; view.setShift(0); }
+        }
         if (mode == HAN && t.length() == 1
                 && (HangulComposer.isCho(t.charAt(0)) || HangulComposer.isVowel(t.charAt(0)))) {
-            if (!hc.retap(t.charAt(0))) hc.input(t.charAt(0));
+            if (hanQwerty || !hc.retap(t.charAt(0))) hc.input(t.charAt(0));
             String done = hc.takeCommit();
             ic.beginBatchEdit();
             if (!done.isEmpty()) ic.commitText(done, 1);
@@ -626,9 +765,10 @@ public class GutgiIME extends InputMethodService implements KeyboardView.Listene
         String text = t;
         if (mode == ENG && shift > 0 && t.length() == 1 && Character.isLetter(t.charAt(0))) {
             text = t.toUpperCase();
-            if (shift == 1) { shift = 0; view.setShift(0); }
+            if (shift == 1) { shift = 0; autoShift = false; view.setShift(0); }
         }
         ic.commitText(text, 1);
+        if (mode == ENG && t.length() == 1 && ".?!".indexOf(t.charAt(0)) < 0) updateAutoCap();
     }
 
     private void shiftArrow(InputConnection ic, int code) {

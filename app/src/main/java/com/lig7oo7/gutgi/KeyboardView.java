@@ -43,7 +43,7 @@ public class KeyboardView extends View {
         KeyDef key;
         float x0, y0, lastX, maxD;
         String dir = "";
-        boolean spaceDrag, selStarted, delWord;
+        boolean spaceDrag, selStarted, delWord, longFired;
         int selSteps;
     }
 
@@ -64,6 +64,8 @@ public class KeyboardView extends View {
         laidOut = false;
         ptrs.clear();
         stopRepeat();
+        cancelLong();
+        requestLayout();
         invalidate();
     }
 
@@ -75,10 +77,23 @@ public class KeyboardView extends View {
         invalidate();
     }
 
+    private float areaL, areaR;   // 키가 놓이는 가로 범위 (폭·위치 설정)
+
+    public boolean isLand() {
+        return getResources().getConfiguration().orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE;
+    }
+
     @Override
     protected void onMeasure(int wSpec, int hSpec) {
         int width = MeasureSpec.getSize(wSpec);
-        int height = (int) ((5 * 54 * dp) * Theme.keyScale + 10 * dp);
+        int height;
+        if (isLand()) {
+            // 가로: 화면 높이의 일정 비율만 쓰기 (기본 42%) → 입력칸·대화가 보이게
+            int screenH = getResources().getDisplayMetrics().heightPixels;
+            height = (int) Math.max(120 * dp, screenH * Prefs.landHeight / 100f);
+        } else {
+            height = (int) ((5 * 54 * dp) * Theme.keyScale + 10 * dp);
+        }
         setMeasuredDimension(width, height);
     }
 
@@ -90,13 +105,18 @@ public class KeyboardView extends View {
     private void layoutKeys() {
         if (rows == null || getWidth() == 0) return;
         float pad = 3 * dp, gap = 5 * dp;
+        boolean land = isLand();
+        int wp = land ? Prefs.landWidth : Prefs.portWidth, al = land ? Prefs.landAlign : Prefs.portAlign;
+        float avail = getWidth() * Math.max(40, Math.min(100, wp)) / 100f;
+        areaL = (getWidth() - avail) * (al == 0 ? 0f : al == 2 ? 1f : 0.5f);
+        areaR = areaL + avail;
         float rowH = (getHeight() - 2 * pad) / rows.size();
         for (int i = 0; i < rows.size(); i++) {
             List<KeyDef> row = rows.get(i);
             float sum = 0;
             for (KeyDef k : row) sum += k.w;
-            float unit = (getWidth() - 2 * pad) / sum;
-            float x = pad;
+            float unit = (avail - 2 * pad) / sum;
+            float x = areaL + pad;
             for (KeyDef k : row) {
                 k.rect.set(x + gap / 2, pad + i * rowH + gap / 2,
                         x + k.w * unit - gap / 2, pad + (i + 1) * rowH - gap / 2);
@@ -149,6 +169,7 @@ public class KeyboardView extends View {
 
                 String main = k.backKey ? backLabel : k.label;
                 main = caseOf(k, main);
+                if (k.shifted != null && shift > 0) main = k.shifted;
                 if (k.below != null) {
                     // 영어 키: 글자는 위쪽, 기호는 아래쪽에 작게
                     textPaint.setColor(Theme.TEXT);
@@ -268,6 +289,7 @@ public class KeyboardView extends View {
     private KeyDef findKey(float x, float y) {
         if (rows == null) return null;
         if (!laidOut) layoutKeys();
+        if (x < areaL - 6 * dp || x > areaR + 6 * dp) return null;   // 폭을 줄였을 때 빈 옆자리
         KeyDef best = null;
         float bestD = Float.MAX_VALUE;
         for (List<KeyDef> row : rows) {
@@ -283,13 +305,49 @@ public class KeyboardView extends View {
         return best;
     }
 
-    private static String dirOf(float dx, float dy) {
-        if (Math.abs(dx) > Math.abs(dy)) return dx > 0 ? "R" : "L";
-        return dy > 0 ? "D" : "U";
+    /** 굿기 방향. 가로·세로 민감도를 따로 (50 = 예전과 같음, 작을수록 짧게 밀어도 인식) */
+    private String dirOf(KeyDef k, float dx, float dy) {
+        float base = Math.max(14 * dp, k.rect.height() * 0.28f);
+        if (Math.abs(dx) > Math.abs(dy))
+            return Math.abs(dx) > base * Prefs.sensH / 50f ? (dx > 0 ? "R" : "L") : "";
+        return Math.abs(dy) > base * Prefs.sensV / 50f ? (dy > 0 ? "D" : "U") : "";
     }
 
-    private float threshold(KeyDef k) {
-        return Math.max(14 * dp, k.rect.height() * 0.28f);
+    private android.os.Vibrator vibrator;
+
+    /** 진동 (설정: 켜기/끄기, 세기=ms, 0이면 폰 기본 진동) */
+    private void buzz(boolean slide) {
+        if (slide ? !Prefs.vibSlide : !Prefs.vib) return;
+        if (Prefs.vibMs <= 0) {
+            performHapticFeedback(slide ? HapticFeedbackConstants.CLOCK_TICK : HapticFeedbackConstants.KEYBOARD_TAP);
+            return;
+        }
+        try {
+            if (vibrator == null) vibrator = (android.os.Vibrator) getContext().getSystemService(Context.VIBRATOR_SERVICE);
+            int ms = slide ? Math.max(5, Prefs.vibMs / 2) : Prefs.vibMs;
+            vibrator.vibrate(android.os.VibrationEffect.createOneShot(ms, android.os.VibrationEffect.DEFAULT_AMPLITUDE));
+        } catch (Exception ignored) { }
+    }
+
+    private android.media.AudioManager audio;
+
+    private void click(KeyDef k) {
+        if (!Prefs.sound) return;
+        try {
+            if (audio == null) audio = (android.media.AudioManager) getContext().getSystemService(Context.AUDIO_SERVICE);
+            int fx = k.repeat ? android.media.AudioManager.FX_KEYPRESS_DELETE
+                    : k.space ? android.media.AudioManager.FX_KEYPRESS_SPACEBAR
+                    : "@ENTER".equals(k.tap) ? android.media.AudioManager.FX_KEYPRESS_RETURN
+                    : android.media.AudioManager.FX_KEYPRESS_STANDARD;
+            audio.playSoundEffect(fx, Prefs.soundVol / 100f);
+        } catch (Exception ignored) { }
+    }
+
+    private Runnable longPress;
+
+    private void cancelLong() {
+        if (longPress != null) handler.removeCallbacks(longPress);
+        longPress = null;
     }
 
     private void emit(String t) {
@@ -297,6 +355,8 @@ public class KeyboardView extends View {
     }
 
     private void release(Ptr p) {
+        if (p.longFired) return;          // 길게 누르기로 이미 처리됨
+        cancelLong();
         if (p.key.repeat) {
             boolean fired = repeatFired;
             stopRepeat();
@@ -328,8 +388,21 @@ public class KeyboardView extends View {
                 Ptr p = new Ptr();
                 p.key = k; p.x0 = x; p.y0 = y; p.lastX = x;
                 ptrs.put(e.getPointerId(idx), p);
-                performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+                buzz(false);
+                click(k);
                 if (k.repeat) startRepeat(k.tap);   // 탭은 손 뗄 때 지움, 길게 누르면 연속 삭제
+                if (k.longTap != null) {
+                    final Ptr lp = p;
+                    longPress = () -> {
+                        longPress = null;
+                        if (lp.dir.isEmpty() && ptrFor(lp.key) == lp) {
+                            lp.longFired = true;
+                            performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+                            emit(lp.key.longTap);
+                        }
+                    };
+                    handler.postDelayed(longPress, 450);
+                }
                 invalidate();
                 break;
             }
@@ -377,11 +450,11 @@ public class KeyboardView extends View {
                     float d = (float) Math.hypot(dx, dy);
                     if (d > p.maxD) {
                         p.maxD = d;
-                        String nd = d > threshold(p.key) ? dirOf(dx, dy) : "";
+                        String nd = dirOf(p.key, dx, dy);
                         if (!nd.equals(p.dir)) {
                             p.dir = nd;
-                            if (!nd.isEmpty() && p.key.has(nd))
-                                performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK);
+                            if (!nd.isEmpty()) cancelLong();
+                            if (!nd.isEmpty() && p.key.has(nd)) buzz(true);
                             invalidate();
                         }
                     }
@@ -402,6 +475,7 @@ public class KeyboardView extends View {
             case MotionEvent.ACTION_CANCEL:
                 ptrs.clear();
                 stopRepeat();
+                cancelLong();
                 invalidate();
                 break;
         }

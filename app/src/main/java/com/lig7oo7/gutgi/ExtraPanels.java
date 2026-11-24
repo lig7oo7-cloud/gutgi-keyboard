@@ -34,6 +34,7 @@ public class ExtraPanels {
         void toggleVoice();
         void undo(boolean redo);
         void openApp(String extra);
+        void naverSearch();
     }
 
 
@@ -46,6 +47,7 @@ public class ExtraPanels {
     private final View[] tabs = new View[4];
     private int open = -1;   // 열린 패널 (-1 = 키보드)
     private View toolbar;
+    private int barH = 36;
     private IconView mic;
 
     public void setVoiceActive(boolean on) {
@@ -66,14 +68,18 @@ public class ExtraPanels {
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(Theme.BG);
 
+        boolean land = ctx.getResources().getConfiguration().orientation
+                == android.content.res.Configuration.ORIENTATION_LANDSCAPE;
+        barH = land ? 30 : 36;                 // 가로모드는 툴바도 낮게
         LinearLayout bar = new LinearLayout(ctx);
         bar.setOrientation(LinearLayout.HORIZONTAL);
-        bar.setPadding(px(4), px(4), px(4), px(2));
+        bar.setPadding(px(4), px(land ? 2 : 4), px(4), px(2));
         // 버튼 만들기 (모두 아이콘, 길게 누르면 이름)
         tabs[0] = toolIcon(IconView.GEMINI, Theme.CHIP, v -> onTab(0));
         tabs[1] = toolIcon(IconView.HISTORY, Theme.CHIP, v -> onTab(1));
         tabs[2] = new View(ctx);                                   // (예전 상용구 자리 — 클립보드로 합침)
         tabs[3] = toolIcon(IconView.TARGET, Theme.CHIP, v -> onTab(3));
+        View naver = toolIcon(IconView.NAVER, Theme.CHIP, v -> host.naverSearch());
         View shot = toolIcon(IconView.SHOT, Theme.CHIP, v -> { showKeyboard(); host.takeScreenshot(); });
         mic = toolIcon(IconView.MIC, Theme.CHIP, v -> host.toggleVoice());
         View copy = toolIcon(IconView.COPY, Theme.PANEL_FUNC, v -> host.contextAction(android.R.id.copy));
@@ -82,12 +88,13 @@ public class ExtraPanels {
         IconView undo = toolIcon(IconView.UNDO, Theme.PANEL_FUNC, v -> host.undo(false));
         undo.setOnLongClickListener(v -> { host.undo(true); Toast.makeText(ctx, "다시 실행", Toast.LENGTH_SHORT).show(); return true; });
 
-        // 배치 순서 (여기 순서만 바꾸면 툴바 배열이 바뀜). 모두 같은 폭으로 나눠서 글자 깨짐 없음
-        View[] order = {tabs[0], tabs[1], tabs[3], shot, mic, copy, cut, paste, undo};
-        for (View v : order) {
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, px(36), 1f);
-            lp.setMargins(px(2), 0, px(2), 0);
-            bar.addView(v, lp);
+        // 배치 순서 = Prefs.TOOLS 순서. 옵션창 › 툴바 설정에서 끈 것은 빼고, 남은 것끼리 같은 폭
+        View[] order = {tabs[0], tabs[1], tabs[3], naver, shot, mic, copy, cut, paste, undo};
+        for (int i = 0; i < order.length; i++) {
+            if (!Prefs.tool[i]) continue;
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, px(barH), 1f);
+            lp.setMargins(px(1.5f), 0, px(1.5f), 0);
+            bar.addView(order[i], lp);
         }
         bar.setOnClickListener(v -> { if (open != -1) showKeyboard(); });
 
@@ -105,6 +112,7 @@ public class ExtraPanels {
         top.addView(bar, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         top.addView(suggestScroll, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         root.addView(top, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        if (!Prefs.toolbar) top.setVisibility(View.GONE);   // 툴바 끄기 (추천 칩 줄도 같이 숨김)
 
         content = new FrameLayout(ctx);
         content.addView(keyboard);
@@ -138,14 +146,14 @@ public class ExtraPanels {
             suggestScroll.setVisibility(View.GONE);
             toolbar.setVisibility(View.VISIBLE);
         });
-        LinearLayout.LayoutParams mlp = new LinearLayout.LayoutParams(px(40), px(36));
+        LinearLayout.LayoutParams mlp = new LinearLayout.LayoutParams(px(40), px(barH));
         mlp.setMargins(px(2), 0, px(4), 0);
         suggestRow.addView(menu, mlp);
         for (final Suggest.Item it : items) {
             TextView c = chip(it.label, 15);
             c.setPadding(px(12), 0, px(12), 0);
             c.setOnClickListener(v -> host.applySuggestion(it));
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, px(36));
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, px(barH));
             lp.setMargins(px(2), 0, px(2), 0);
             suggestRow.addView(c, lp);
         }

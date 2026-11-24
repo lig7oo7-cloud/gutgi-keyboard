@@ -15,6 +15,10 @@ public class HangulComposer {
             "ㅗㅏㅘ", "ㅗㅐㅙ", "ㅗㅣㅚ", "ㅜㅓㅝ", "ㅜㅔㅞ", "ㅜㅣㅟ", "ㅡㅣㅢ",
             "ㅏㅣㅐ", "ㅓㅣㅔ", "ㅑㅣㅒ", "ㅕㅣㅖ", "ㅘㅣㅙ", "ㅝㅣㅞ"};
 
+    /** 두벌식 쿼티: 딩굴용 모음 합치기(ㅏ+ㅣ=ㅐ 등)는 쓰지 않음 */
+    public boolean strict;
+    static final int STRICT_PAIRS = 7;   // JUNG_PAIRS 앞 7개만 표준 두벌식
+
     private char cho, jung, jong;
     private final ArrayDeque<char[]> hist = new ArrayDeque<>();
     private final StringBuilder out = new StringBuilder();
@@ -67,7 +71,7 @@ public class HangulComposer {
             return;
         }
         if (jung != 0) {
-            char comb = pair(JUNG_PAIRS, jung, v);
+            char comb = pair(strict ? java.util.Arrays.copyOf(JUNG_PAIRS, STRICT_PAIRS) : JUNG_PAIRS, jung, v);
             if (comb != 0) { push(); jung = comb; return; }
             commitCurrent(); push(); jung = v; return;
         }

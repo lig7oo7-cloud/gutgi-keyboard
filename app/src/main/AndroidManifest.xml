@@ -54,6 +54,13 @@
 
 
         <activity
+            android:name=".SettingsActivity"
+            android:exported="false"
+            android:label="굿기키 설정"
+            android:taskAffinity="com.lig7oo7.gutgi.settings"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
             android:name=".ShotActivity"
             android:exported="false"
             android:excludeFromRecents="true"

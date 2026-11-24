@@ -9,6 +9,8 @@ public class KeyDef {
     public boolean func, repeat, space, spacer, letter, isShift, backKey, selDrag, showSubs = true;
     public String icon;   // DEL, ENTER, GLOBE, SHIFT
     public String below;  // 영어 키: 글자 아래 작은 기호
+    public String longTap;  // 길게 누르면 (예: 지구본 → 옵션창)
+    public String shifted;  // 쿼티 한글: 시프트 때 보일 글자 (ㅂ→ㅃ)
     public final RectF rect = new RectF();
 
     public KeyDef(String label, String tap) {
