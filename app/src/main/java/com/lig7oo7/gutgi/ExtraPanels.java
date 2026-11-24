@@ -69,65 +69,26 @@ public class ExtraPanels {
         LinearLayout bar = new LinearLayout(ctx);
         bar.setOrientation(LinearLayout.HORIZONTAL);
         bar.setPadding(px(4), px(4), px(4), px(2));
-        int[] tabIcons = {IconView.GEMINI, IconView.HISTORY};
-        for (int i = 0; i < 4; i++) {
-            final int idx = i;
-            View t;
-            LinearLayout.LayoutParams lp;
-            if (i == 2) { tabs[i] = new View(ctx); continue; }   // (예전 상용구 자리 — 클립보드로 합침)
-            if (i < 2) {
-                t = new IconView(ctx, tabIcons[i]);
-                lp = new LinearLayout.LayoutParams(px(38), px(36));
-            } else {
-                TextView tv = chip("🎯 상황어", 13);
-                tv.setTypeface(Typeface.DEFAULT_BOLD);
-                t = tv;
-                lp = new LinearLayout.LayoutParams(0, px(36), 1f);
-            }
-            t.setBackground(round(Theme.CHIP));
-            lp.setMargins(px(2), 0, px(2), 0);
-            bar.addView(t, lp);
-            t.setOnClickListener(v -> onTab(idx));
-            tabs[i] = t;
-        }
-        // 키보드 내리고 캡처
-        IconView ajae = new IconView(ctx, IconView.SHOT);
-        ajae.setBackground(round(Theme.CHIP));
-        ajae.setOnClickListener(v -> { showKeyboard(); host.takeScreenshot(); });
-        ajae.setOnLongClickListener(v -> { Toast.makeText(ctx, "키보드 내리고 화면 캡처", Toast.LENGTH_SHORT).show(); return true; });
-        LinearLayout.LayoutParams alp = new LinearLayout.LayoutParams(px(40), px(36));
-        alp.setMargins(px(2), 0, px(2), 0);
-        bar.addView(ajae, alp);
-
-        // 되돌리기 (길게 = 다시 실행)
-        IconView undo = new IconView(ctx, IconView.UNDO);
-        undo.setBackground(round(Theme.CHIP));
-        undo.setOnClickListener(v -> host.undo(false));
+        // 버튼 만들기 (모두 아이콘, 길게 누르면 이름)
+        tabs[0] = toolIcon(IconView.GEMINI, Theme.CHIP, v -> onTab(0));
+        tabs[1] = toolIcon(IconView.HISTORY, Theme.CHIP, v -> onTab(1));
+        tabs[2] = new View(ctx);                                   // (예전 상용구 자리 — 클립보드로 합침)
+        tabs[3] = toolIcon(IconView.TARGET, Theme.CHIP, v -> onTab(3));
+        View shot = toolIcon(IconView.SHOT, Theme.CHIP, v -> { showKeyboard(); host.takeScreenshot(); });
+        mic = toolIcon(IconView.MIC, Theme.CHIP, v -> host.toggleVoice());
+        View copy = toolIcon(IconView.COPY, Theme.PANEL_FUNC, v -> host.contextAction(android.R.id.copy));
+        View cut = toolIcon(IconView.CUT, Theme.PANEL_FUNC, v -> host.contextAction(android.R.id.cut));
+        View paste = toolIcon(IconView.PASTE, Theme.PANEL_FUNC, v -> host.contextAction(android.R.id.paste));
+        IconView undo = toolIcon(IconView.UNDO, Theme.PANEL_FUNC, v -> host.undo(false));
         undo.setOnLongClickListener(v -> { host.undo(true); Toast.makeText(ctx, "다시 실행", Toast.LENGTH_SHORT).show(); return true; });
-        LinearLayout.LayoutParams ulp = new LinearLayout.LayoutParams(px(38), px(36));
-        ulp.setMargins(px(2), 0, px(2), 0);
-        bar.addView(undo, ulp);
 
-        // 복사 · 잘라내기 · 붙여넣기 (아이콘만)
-        int[] kinds = {IconView.COPY, IconView.CUT, IconView.PASTE};
-        int[] ids = {android.R.id.copy, android.R.id.cut, android.R.id.paste};
-        for (int i = 0; i < 3; i++) {
-            final int id = ids[i];
-            IconView iv = new IconView(ctx, kinds[i]);
-            iv.setBackground(round(Theme.PANEL_FUNC));
-            iv.setOnLongClickListener(v -> { Toast.makeText(ctx, iv.getContentDescription(), Toast.LENGTH_SHORT).show(); return true; });
-            iv.setOnClickListener(v -> host.contextAction(id));
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(px(36), px(36));
+        // 배치 순서 (여기 순서만 바꾸면 툴바 배열이 바뀜). 모두 같은 폭으로 나눠서 글자 깨짐 없음
+        View[] order = {tabs[0], tabs[1], tabs[3], shot, mic, copy, cut, paste, undo};
+        for (View v : order) {
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, px(36), 1f);
             lp.setMargins(px(2), 0, px(2), 0);
-            bar.addView(iv, lp);
+            bar.addView(v, lp);
         }
-        // 음성 입력 (끝)
-        mic = new IconView(ctx, IconView.MIC);
-        mic.setBackground(round(Theme.CHIP));
-        mic.setOnClickListener(v -> host.toggleVoice());
-        LinearLayout.LayoutParams mlp2 = new LinearLayout.LayoutParams(px(38), px(36));
-        mlp2.setMargins(px(2), 0, px(2), 0);
-        bar.addView(mic, mlp2);
         bar.setOnClickListener(v -> { if (open != -1) showKeyboard(); });
 
         // 툴바 자리 = 평소엔 툴바, 글자를 치면 추천 칩 줄 (삼성 키보드 방식, 높이 그대로)
@@ -151,6 +112,14 @@ public class ExtraPanels {
     }
 
     public View root() { return root; }
+
+    private IconView toolIcon(int kind, int bg, View.OnClickListener click) {
+        final IconView iv = new IconView(ctx, kind);
+        iv.setBackground(round(bg));
+        iv.setOnClickListener(click);
+        iv.setOnLongClickListener(v -> { Toast.makeText(ctx, iv.getContentDescription(), Toast.LENGTH_SHORT).show(); return true; });
+        return iv;
+    }
 
     /** 추천 후보 갱신. 후보가 없거나 패널이 열려 있으면 툴바를 보여준다 */
     public void setSuggestions(final String token, java.util.List<Suggest.Item> items) {

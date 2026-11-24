@@ -8,7 +8,7 @@ import android.view.View;
 
 /** 복사·잘라내기·붙여넣기 아이콘을 직접 그린다 (폰 글꼴에 상관없이 똑같이 보이게) */
 public class IconView extends View {
-    public static final int COPY = 0, CUT = 1, PASTE = 2, GEMINI = 3, HISTORY = 4, PHRASE = 5, SHOT = 6, MIC = 7, UNDO = 8;
+    public static final int COPY = 0, CUT = 1, PASTE = 2, GEMINI = 3, HISTORY = 4, PHRASE = 5, SHOT = 6, MIC = 7, UNDO = 8, TARGET = 9;
 
     private final int kind;
     private boolean active;   // 마이크 듣는 중 (빨간색)
@@ -24,7 +24,7 @@ public class IconView extends View {
         p.setStyle(Paint.Style.STROKE);
         p.setStrokeCap(Paint.Cap.ROUND);
         p.setStrokeJoin(Paint.Join.ROUND);
-        String[] desc = {"복사", "잘라내기", "붙여넣기", "Gemini", "복사 기록", "상용구", "화면 캡처", "음성 입력", "되돌리기"};
+        String[] desc = {"복사", "잘라내기", "붙여넣기", "Gemini", "복사 기록", "상용구", "화면 캡처", "음성 입력", "되돌리기", "상황어"};
         setContentDescription(desc[kind]);
     }
 
@@ -78,6 +78,17 @@ public class IconView extends View {
                 s.quadTo(cx - k, cy + k, cx - R, cy);
                 s.quadTo(cx - k, cy - k, cx, cy - R);
                 c.drawPath(s, p);
+                p.setColor(Theme.ICON_LINE);
+                break;
+            }
+            case TARGET: {
+                // 과녁 (상황어)
+                p.setColor(0xFFE53935);
+                c.drawCircle(cx, cy, u * 2.7f, p);
+                c.drawCircle(cx, cy, u * 1.6f, p);
+                p.setStyle(Paint.Style.FILL);
+                c.drawCircle(cx, cy, u * 0.6f, p);
+                p.setStyle(Paint.Style.STROKE);
                 p.setColor(Theme.ICON_LINE);
                 break;
             }
