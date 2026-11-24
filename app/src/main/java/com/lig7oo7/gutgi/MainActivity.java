@@ -129,6 +129,9 @@ public class MainActivity extends Activity {
         final ScrollView sv = new ScrollView(this);
         sv.addView(box);
         setContentView(sv);
+        if (getIntent().getBooleanExtra("micperm", false)) {
+            requestPermissions(new String[]{android.Manifest.permission.RECORD_AUDIO}, 9);
+        }
         if (getIntent().getBooleanExtra("phrases", false)) {
             sv.post(() -> { sv.smoothScrollTo(0, phTitle.getTop()); phrases.requestFocus(); });
         }

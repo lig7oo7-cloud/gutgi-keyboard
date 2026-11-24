@@ -31,6 +31,7 @@ public class ExtraPanels {
         void replaceWord(String word);
         void applySuggestion(Suggest.Item item);
         void takeScreenshot();
+        void toggleVoice();
         void openApp(String extra);
     }
 
@@ -50,6 +51,12 @@ public class ExtraPanels {
     private final View[] tabs = new View[4];
     private int open = -1;   // 열린 패널 (-1 = 키보드)
     private View toolbar;
+    private IconView mic;
+
+    public void setVoiceActive(boolean on) {
+        if (mic != null) mic.setActive(on);
+        if (on && suggestScroll != null) { suggestScroll.setVisibility(View.GONE); toolbar.setVisibility(View.VISIBLE); }
+    }
     private HorizontalScrollView suggestScroll;
     private LinearLayout suggestRow;
     private String suppressedToken = null;   // ≡ 를 눌러 툴바로 돌아간 조각
@@ -110,6 +117,13 @@ public class ExtraPanels {
             lp.setMargins(px(2), 0, px(2), 0);
             bar.addView(iv, lp);
         }
+        // 음성 입력 (끝)
+        mic = new IconView(ctx, IconView.MIC);
+        mic.setBackground(round(CHIP));
+        mic.setOnClickListener(v -> host.toggleVoice());
+        LinearLayout.LayoutParams mlp2 = new LinearLayout.LayoutParams(px(38), px(36));
+        mlp2.setMargins(px(2), 0, px(2), 0);
+        bar.addView(mic, mlp2);
         bar.setOnClickListener(v -> { if (open != -1) showKeyboard(); });
 
         // 툴바 자리 = 평소엔 툴바, 글자를 치면 추천 칩 줄 (삼성 키보드 방식, 높이 그대로)

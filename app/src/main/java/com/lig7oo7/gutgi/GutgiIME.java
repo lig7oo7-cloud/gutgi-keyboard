@@ -49,6 +49,7 @@ public class GutgiIME extends InputMethodService implements KeyboardView.Listene
 
     @Override
     public void onDestroy() {
+        if (recognizer != null) recognizer.destroy();
         if (clipboard != null) clipboard.removePrimaryClipChangedListener(clipListener);
         super.onDestroy();
     }
@@ -170,6 +171,92 @@ public class GutgiIME extends InputMethodService implements KeyboardView.Listene
         scheduleSuggest();
     }
 
+    // ───────── 음성 입력 (폰의 음성 인식 서비스 사용, 키보드 자체는 인터넷 없음) ─────────
+    private android.speech.SpeechRecognizer recognizer;
+    private boolean listening;
+
+    @Override
+    public void toggleVoice() {
+        if (listening) { stopVoice(); return; }
+        if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)
+                != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            Toast.makeText(this, "처음 한 번: 마이크 권한을 허용해 주세요", Toast.LENGTH_SHORT).show();
+            openApp("micperm");
+            return;
+        }
+        if (!android.speech.SpeechRecognizer.isRecognitionAvailable(this)) {
+            Toast.makeText(this, "음성 인식 서비스가 없어요 (Google 앱 필요)", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        commitComposing();
+        if (recognizer == null) {
+            recognizer = android.speech.SpeechRecognizer.createSpeechRecognizer(this);
+            recognizer.setRecognitionListener(new android.speech.RecognitionListener() {
+                @Override public void onReadyForSpeech(android.os.Bundle b) { }
+                @Override public void onBeginningOfSpeech() { }
+                @Override public void onRmsChanged(float v) { }
+                @Override public void onBufferReceived(byte[] b) { }
+                @Override public void onEndOfSpeech() { }
+                @Override public void onEvent(int t, android.os.Bundle b) { }
+                @Override public void onPartialResults(android.os.Bundle b) {
+                    String t = first(b);
+                    InputConnection ic = getCurrentInputConnection();
+                    if (t != null && ic != null) ic.setComposingText(t, 1);   // 말하는 중 미리 보기
+                }
+                @Override public void onResults(android.os.Bundle b) {
+                    String t = first(b);
+                    InputConnection ic = getCurrentInputConnection();
+                    if (ic != null) {
+                        if (t != null && !t.isEmpty()) ic.commitText(t + " ", 1);
+                        else ic.finishComposingText();
+                    }
+                    setListening(false);
+                }
+                @Override public void onError(int error) {
+                    InputConnection ic = getCurrentInputConnection();
+                    if (ic != null) ic.finishComposingText();
+                    if (error == android.speech.SpeechRecognizer.ERROR_NO_MATCH
+                            || error == android.speech.SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
+                        Toast.makeText(GutgiIME.this, "말소리를 못 들었어요", Toast.LENGTH_SHORT).show();
+                    } else if (error == android.speech.SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) {
+                        openApp("micperm");
+                    } else {
+                        Toast.makeText(GutgiIME.this, "음성 인식 오류 (" + error + ")", Toast.LENGTH_SHORT).show();
+                    }
+                    setListening(false);
+                }
+            });
+        }
+        Intent i = new Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+        i.putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+        i.putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE, mode == ENG ? "en-US" : "ko-KR");
+        i.putExtra(android.speech.RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
+        i.putExtra(android.speech.RecognizerIntent.EXTRA_CALLING_PACKAGE, getPackageName());
+        try {
+            recognizer.startListening(i);
+            setListening(true);
+            Toast.makeText(this, "🎤 말씀하세요", Toast.LENGTH_SHORT).show();
+        } catch (Exception e) {
+            Toast.makeText(this, "음성 인식을 시작하지 못했어요", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private static String first(android.os.Bundle b) {
+        java.util.ArrayList<String> r = b == null ? null
+                : b.getStringArrayList(android.speech.SpeechRecognizer.RESULTS_RECOGNITION);
+        return r == null || r.isEmpty() ? null : r.get(0);
+    }
+
+    private void stopVoice() {
+        if (recognizer != null) recognizer.stopListening();   // 지금까지 말한 것으로 마무리
+        setListening(false);
+    }
+
+    private void setListening(boolean on) {
+        listening = on;
+        if (panels != null) panels.setVoiceActive(on);
+    }
+
     /** 키보드를 내리고 화면 캡처 (화면 공유 세션이 살아 있으면 동의 없이 바로) */
     @Override
     public void takeScreenshot() {
@@ -263,6 +350,8 @@ public class GutgiIME extends InputMethodService implements KeyboardView.Listene
 
     @Override
     public void onFinishInputView(boolean finishingInput) {
+        if (listening && recognizer != null) recognizer.cancel();
+        setListening(false);
         commitComposing();
         super.onFinishInputView(finishingInput);
     }
