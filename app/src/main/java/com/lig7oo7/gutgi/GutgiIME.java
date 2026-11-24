@@ -84,6 +84,91 @@ public class GutgiIME extends InputMethodService implements KeyboardView.Listene
 
     private String lastWord = null;
 
+    // ───────── 추천 칩 (초성·앞글자·이메일) ─────────
+    private final android.os.Handler ui = new android.os.Handler(android.os.Looper.getMainLooper());
+    private final Runnable suggestTask = this::refreshSuggestions;
+    private java.util.List<String> dictCache;
+    private java.util.Map<String, Integer> suggestUsage;
+
+    private void scheduleSuggest() {
+        ui.removeCallbacks(suggestTask);
+        ui.postDelayed(suggestTask, 40);
+    }
+
+    private java.util.List<String> dict() {
+        if (dictCache == null) {
+            java.util.List<String> l = new java.util.ArrayList<>();
+            l.addAll(Store.load(this, "userWords"));      // 내 단어가 먼저
+            l.addAll(Store.phrases(this));                // 상용구도 추천
+            l.addAll(java.util.Arrays.asList(Dict.WORDS));
+            dictCache = l;
+        }
+        return dictCache;
+    }
+
+    private java.util.Map<String, Integer> usageMap() {
+        if (suggestUsage == null) {
+            suggestUsage = new java.util.HashMap<>();
+            for (String e : Store.load(this, "suggestUsage")) {
+                int i = e.lastIndexOf('\t');
+                if (i > 0) try { suggestUsage.put(e.substring(0, i), Integer.parseInt(e.substring(i + 1))); } catch (Exception ignored) { }
+            }
+        }
+        return suggestUsage;
+    }
+
+    private boolean isPrivateField() {
+        EditorInfo ei = getCurrentInputEditorInfo();
+        if (ei == null) return true;
+        int var = ei.inputType & InputType.TYPE_MASK_VARIATION;
+        int cls = ei.inputType & InputType.TYPE_MASK_CLASS;
+        return cls == InputType.TYPE_CLASS_TEXT && (var == InputType.TYPE_TEXT_VARIATION_PASSWORD
+                || var == InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+                || var == InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD)
+                || cls == InputType.TYPE_CLASS_NUMBER && (ei.inputType & InputType.TYPE_NUMBER_VARIATION_PASSWORD) != 0;
+    }
+
+    private void refreshSuggestions() {
+        if (panels == null) return;
+        InputConnection ic = getCurrentInputConnection();
+        if (ic == null || isPrivateField()) { panels.setSuggestions("", null); return; }
+        CharSequence before = ic.getTextBeforeCursor(64, 0);
+        String tok = Suggest.token(before);
+        EditorInfo ei = getCurrentInputEditorInfo();
+        int var = ei == null ? 0 : ei.inputType & InputType.TYPE_MASK_VARIATION;
+        boolean email = var == InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS
+                || var == InputType.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS;
+        panels.setSuggestions(tok, Suggest.compute(tok, email, dict(), java.util.Arrays.asList(Dict.DOMAINS), usageMap()));
+    }
+
+    /** 추천 칩 선택: 입력 중이던 조각(조합 중인 글자 포함)을 지우고 완성 단어로 바꾼다 */
+    @Override
+    public void applySuggestion(Suggest.Item item) {
+        InputConnection ic = getCurrentInputConnection();
+        if (ic == null) return;
+        String comp = hc.isComposing() ? hc.current() : "";
+        hc.reset();
+        ic.beginBatchEdit();
+        int del = item.deleteBefore;
+        if (!comp.isEmpty()) {
+            ic.setComposingText("", 1);
+            ic.finishComposingText();
+            del = Math.max(0, del - comp.length());
+        }
+        if (del > 0) ic.deleteSurroundingText(del, 0);
+        ic.commitText(item.insert + (item.learnKey != null ? " " : ""), 1);
+        ic.endBatchEdit();
+        lastWord = null;
+        if (item.learnKey != null) {
+            java.util.Map<String, Integer> u = usageMap();
+            u.put(item.learnKey, (u.containsKey(item.learnKey) ? u.get(item.learnKey) : 0) + 1);
+            java.util.List<String> out = new java.util.ArrayList<>();
+            for (java.util.Map.Entry<String, Integer> e : u.entrySet()) out.add(e.getKey() + "\t" + e.getValue());
+            Store.save(this, "suggestUsage", out);
+        }
+        scheduleSuggest();
+    }
+
     /** 아재개그 요청을 Gemini로 보냈음을 기록 → 3분 안에 키보드가 다시 뜨면 '기록' 패널을 바로 연다 */
     public static void markAjaePending(android.content.Context c) {
         c.getSharedPreferences("gutgi", MODE_PRIVATE).edit()
@@ -188,6 +273,8 @@ public class GutgiIME extends InputMethodService implements KeyboardView.Listene
             else if (takeAjaePending()) panels.openHistory();
         }
         lastWord = null;
+        dictCache = null;   // 상용구·내 단어 변경 반영
+        scheduleSuggest();
         int cls = info.inputType & InputType.TYPE_MASK_CLASS;
         int var = info.inputType & InputType.TYPE_MASK_VARIATION;
         if (cls == InputType.TYPE_CLASS_NUMBER || cls == InputType.TYPE_CLASS_PHONE
@@ -215,6 +302,7 @@ public class GutgiIME extends InputMethodService implements KeyboardView.Listene
     public void onUpdateSelection(int oldSelStart, int oldSelEnd, int newSelStart, int newSelEnd,
                                   int candidatesStart, int candidatesEnd) {
         super.onUpdateSelection(oldSelStart, oldSelEnd, newSelStart, newSelEnd, candidatesStart, candidatesEnd);
+        scheduleSuggest();
         // 사용자가 커서를 다른 곳에 찍으면 조합을 끊는다
         if (hc.isComposing() && (newSelStart != candidatesEnd || newSelEnd != candidatesEnd)) {
             hc.reset();

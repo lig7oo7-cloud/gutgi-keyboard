@@ -29,6 +29,7 @@ public class ExtraPanels {
         void contextAction(int id);
         CharSequence selectedText();
         void replaceWord(String word);
+        void applySuggestion(Suggest.Item item);
         void startAjae();
         void sendShotToGeminiApp();
         void openApp(String extra);
@@ -49,6 +50,10 @@ public class ExtraPanels {
     private final LinearLayout root;
     private final View[] tabs = new View[4];
     private int open = -1;   // 열린 패널 (-1 = 키보드)
+    private View toolbar;
+    private HorizontalScrollView suggestScroll;
+    private LinearLayout suggestRow;
+    private String suppressedToken = null;   // ≡ 를 눌러 툴바로 돌아간 조각
 
     public ExtraPanels(Context ctx, Host host, View keyboard) {
         this.ctx = ctx;
@@ -105,7 +110,20 @@ public class ExtraPanels {
             lp.setMargins(px(2), 0, px(2), 0);
             bar.addView(iv, lp);
         }
-        root.addView(bar, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        // 툴바 자리 = 평소엔 툴바, 글자를 치면 추천 칩 줄 (삼성 키보드 방식, 높이 그대로)
+        toolbar = bar;
+        suggestRow = new LinearLayout(ctx);
+        suggestRow.setOrientation(LinearLayout.HORIZONTAL);
+        suggestRow.setGravity(Gravity.CENTER_VERTICAL);
+        suggestScroll = new HorizontalScrollView(ctx);
+        suggestScroll.setHorizontalScrollBarEnabled(false);
+        suggestScroll.setPadding(px(4), px(4), px(4), px(2));
+        suggestScroll.addView(suggestRow);
+        suggestScroll.setVisibility(View.GONE);
+        FrameLayout top = new FrameLayout(ctx);
+        top.addView(bar, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        top.addView(suggestScroll, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        root.addView(top, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         content = new FrameLayout(ctx);
         content.addView(keyboard);
@@ -113,6 +131,39 @@ public class ExtraPanels {
     }
 
     public View root() { return root; }
+
+    /** 추천 후보 갱신. 후보가 없거나 패널이 열려 있으면 툴바를 보여준다 */
+    public void setSuggestions(final String token, java.util.List<Suggest.Item> items) {
+        boolean show = open == -1 && items != null && !items.isEmpty() && !token.equals(suppressedToken);
+        if (!token.equals(suppressedToken)) suppressedToken = null;
+        if (!show) {
+            suggestScroll.setVisibility(View.GONE);
+            toolbar.setVisibility(View.VISIBLE);
+            return;
+        }
+        suggestRow.removeAllViews();
+        TextView menu = chip("≡", 16);
+        menu.setBackground(round(0xFFD3D7DC));
+        menu.setOnClickListener(v -> {           // 툴바로 돌아가기
+            suppressedToken = token;
+            suggestScroll.setVisibility(View.GONE);
+            toolbar.setVisibility(View.VISIBLE);
+        });
+        LinearLayout.LayoutParams mlp = new LinearLayout.LayoutParams(px(40), px(36));
+        mlp.setMargins(px(2), 0, px(4), 0);
+        suggestRow.addView(menu, mlp);
+        for (final Suggest.Item it : items) {
+            TextView c = chip(it.label, 15);
+            c.setPadding(px(12), 0, px(12), 0);
+            c.setOnClickListener(v -> host.applySuggestion(it));
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, px(36));
+            lp.setMargins(px(2), 0, px(2), 0);
+            suggestRow.addView(c, lp);
+        }
+        suggestScroll.scrollTo(0, 0);
+        toolbar.setVisibility(View.INVISIBLE);   // 높이는 유지
+        suggestScroll.setVisibility(View.VISIBLE);
+    }
 
     /** 입력창이 바뀌면 키보드로 돌아오기 */
     public void reset() { showKeyboard(); }
@@ -208,6 +259,7 @@ public class ExtraPanels {
 
     private void showPanel(int idx, View panel) {
         open = idx;
+        if (suggestScroll != null) { suggestScroll.setVisibility(View.GONE); toolbar.setVisibility(View.VISIBLE); }
         int h = keyboard.getHeight() > 0 ? keyboard.getHeight() : px(280);
         content.removeAllViews();
         content.addView(panel, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, h));

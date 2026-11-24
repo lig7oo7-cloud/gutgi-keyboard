@@ -89,6 +89,25 @@ public class MainActivity extends Activity {
         });
         box.addView(save);
 
+        TextView wTitle = new TextView(this);
+        wTitle.setText("\n🔤 추천 단어 (초성·앞글자로 추천)\n한 줄에 하나씩. 예) 조심히 들어가 → 'ㅈㅅ' 만 쳐도 추천");
+        wTitle.setTextSize(15);
+        wTitle.setTextColor(Color.BLACK);
+        box.addView(wTitle);
+        final EditText wordsIn = new EditText(this);
+        wordsIn.setMinLines(4);
+        wordsIn.setText(android.text.TextUtils.join("\n", Store.load(this, "userWords")));
+        box.addView(wordsIn);
+        Button saveWords = new Button(this);
+        saveWords.setText("추천 단어 저장");
+        saveWords.setOnClickListener(v -> {
+            java.util.List<String> l = new java.util.ArrayList<>();
+            for (String line : wordsIn.getText().toString().split("\n")) if (!line.trim().isEmpty()) l.add(line.trim());
+            Store.save(this, "userWords", l);
+            android.widget.Toast.makeText(this, "저장했어요", android.widget.Toast.LENGTH_SHORT).show();
+        });
+        box.addView(saveWords);
+
         TextView aiTitle = new TextView(this);
         aiTitle.setText("\n💬 AI 답장 추천 (Gemini API)");
         aiTitle.setTextSize(17);
