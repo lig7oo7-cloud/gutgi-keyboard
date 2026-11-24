@@ -109,6 +109,90 @@ public class MainActivity extends Activity {
         box.addView(saveWords);
 
 
+        // ── 키보드 설정 ──
+        final android.content.SharedPreferences ksp = getSharedPreferences("gutgi", MODE_PRIVATE);
+        TextView kTitle = new TextView(this);
+        kTitle.setText("\n⚙ 키보드 설정");
+        kTitle.setTextSize(17);
+        kTitle.setTextColor(Color.BLACK);
+        box.addView(kTitle);
+
+        final android.widget.RadioGroup darkGroup = new android.widget.RadioGroup(this);
+        darkGroup.setOrientation(android.widget.RadioGroup.HORIZONTAL);
+        String[] dl = {"밝게", "어둡게", "폰 설정 따라"};
+        for (int i = 0; i < 3; i++) {
+            android.widget.RadioButton rb = new android.widget.RadioButton(this);
+            rb.setText(dl[i]);
+            rb.setId(1000 + i);
+            darkGroup.addView(rb);
+        }
+        darkGroup.check(1000 + ksp.getInt("darkMode", 2));
+        box.addView(darkGroup);
+
+        final TextView hLbl = new TextView(this);
+        final android.widget.SeekBar hBar = new android.widget.SeekBar(this);
+        hBar.setMax(50);                                   // 80% ~ 130%
+        hBar.setProgress(ksp.getInt("keyHeight", 100) - 80);
+        hLbl.setText("키 높이: " + ksp.getInt("keyHeight", 100) + "%");
+        hBar.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(android.widget.SeekBar b, int p, boolean u) { hLbl.setText("키 높이: " + (p + 80) + "%"); }
+            @Override public void onStartTrackingTouch(android.widget.SeekBar b) { }
+            @Override public void onStopTrackingTouch(android.widget.SeekBar b) { }
+        });
+        box.addView(hLbl);
+        box.addView(hBar);
+
+        final android.widget.CheckBox learn = new android.widget.CheckBox(this);
+        learn.setText("자주 쓰는 말 학습 (2번 이상 쓴 단어를 추천, 폰 안에만 저장)");
+        learn.setChecked(ksp.getBoolean("learn", true));
+        box.addView(learn);
+
+        TextView rTitle = new TextView(this);
+        rTitle.setText("환율 (직접 입력, 인터넷 안 씀) — 예: 10달러 치면 원화 칩");
+        box.addView(rTitle);
+        final String[] cur = {"USD", "JPY", "EUR", "CNY"};
+        final String[] curLbl = {"1달러 =", "100엔 =", "1유로 =", "1위안 ="};
+        final EditText[] rateIn = new EditText[4];
+        for (int i = 0; i < 4; i++) {
+            LinearLayout row = new LinearLayout(this);
+            TextView l = new TextView(this);
+            l.setText(curLbl[i]);
+            l.setWidth((int) (80 * getResources().getDisplayMetrics().density));
+            row.addView(l);
+            rateIn[i] = new EditText(this);
+            rateIn[i].setInputType(android.text.InputType.TYPE_CLASS_NUMBER | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
+            float v = ksp.getFloat("rate_" + cur[i], 0f);
+            rateIn[i].setText(v > 0 ? (v == (long) v ? String.valueOf((long) v) : String.valueOf(v)) : "");
+            rateIn[i].setHint("원");
+            row.addView(rateIn[i], new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+            box.addView(row);
+        }
+
+        Button saveK = new Button(this);
+        saveK.setText("키보드 설정 저장");
+        saveK.setOnClickListener(v -> {
+            android.content.SharedPreferences.Editor e = ksp.edit()
+                    .putInt("darkMode", darkGroup.getCheckedRadioButtonId() - 1000)
+                    .putInt("keyHeight", hBar.getProgress() + 80)
+                    .putBoolean("learn", learn.isChecked());
+            for (int i = 0; i < 4; i++) {
+                float r = 0f;
+                try { r = Float.parseFloat(rateIn[i].getText().toString().replace(",", "").trim()); } catch (Exception ignored) { }
+                e.putFloat("rate_" + cur[i], r);
+            }
+            e.apply();
+            android.widget.Toast.makeText(this, "저장했어요 (키보드를 다시 열면 적용)", android.widget.Toast.LENGTH_SHORT).show();
+        });
+        box.addView(saveK);
+
+        Button forget = new Button(this);
+        forget.setText("학습한 단어 모두 지우기");
+        forget.setOnClickListener(v -> {
+            Store.save(this, "learned", new java.util.ArrayList<>());
+            android.widget.Toast.makeText(this, "지웠어요", android.widget.Toast.LENGTH_SHORT).show();
+        });
+        box.addView(forget);
+
         Button unhide = new Button(this);
         unhide.setText("🎯 상황어: 숨긴 단어 복구 + 배치 초기화 (고정은 유지)");
         unhide.setOnClickListener(v -> {

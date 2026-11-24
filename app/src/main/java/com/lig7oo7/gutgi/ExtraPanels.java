@@ -32,15 +32,10 @@ public class ExtraPanels {
         void applySuggestion(Suggest.Item item);
         void takeScreenshot();
         void toggleVoice();
+        void undo(boolean redo);
         void openApp(String extra);
     }
 
-    private static final int BG = 0xFFE8EBEF;
-    private static final int CHIP = 0xFFFFFFFF;
-    private static final int TEXT = 0xFF37474F;
-    private static final int SUB = 0xFF7D8892;
-    private static final int ACTIVE = 0xFFB2DFDB;
-    private static final int PINNED = 0xFFE0F2F1;
 
     private final Context ctx;
     private final Host host;
@@ -69,7 +64,7 @@ public class ExtraPanels {
 
         root = new LinearLayout(ctx);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(BG);
+        root.setBackgroundColor(Theme.BG);
 
         LinearLayout bar = new LinearLayout(ctx);
         bar.setOrientation(LinearLayout.HORIZONTAL);
@@ -82,14 +77,14 @@ public class ExtraPanels {
             if (i == 2) { tabs[i] = new View(ctx); continue; }   // (예전 상용구 자리 — 클립보드로 합침)
             if (i < 2) {
                 t = new IconView(ctx, tabIcons[i]);
-                lp = new LinearLayout.LayoutParams(px(44), px(36));
+                lp = new LinearLayout.LayoutParams(px(38), px(36));
             } else {
                 TextView tv = chip("🎯 상황어", 13);
                 tv.setTypeface(Typeface.DEFAULT_BOLD);
                 t = tv;
                 lp = new LinearLayout.LayoutParams(0, px(36), 1f);
             }
-            t.setBackground(round(CHIP));
+            t.setBackground(round(Theme.CHIP));
             lp.setMargins(px(2), 0, px(2), 0);
             bar.addView(t, lp);
             t.setOnClickListener(v -> onTab(idx));
@@ -97,12 +92,21 @@ public class ExtraPanels {
         }
         // 키보드 내리고 캡처
         IconView ajae = new IconView(ctx, IconView.SHOT);
-        ajae.setBackground(round(CHIP));
+        ajae.setBackground(round(Theme.CHIP));
         ajae.setOnClickListener(v -> { showKeyboard(); host.takeScreenshot(); });
         ajae.setOnLongClickListener(v -> { Toast.makeText(ctx, "키보드 내리고 화면 캡처", Toast.LENGTH_SHORT).show(); return true; });
         LinearLayout.LayoutParams alp = new LinearLayout.LayoutParams(px(40), px(36));
         alp.setMargins(px(2), 0, px(2), 0);
         bar.addView(ajae, alp);
+
+        // 되돌리기 (길게 = 다시 실행)
+        IconView undo = new IconView(ctx, IconView.UNDO);
+        undo.setBackground(round(Theme.CHIP));
+        undo.setOnClickListener(v -> host.undo(false));
+        undo.setOnLongClickListener(v -> { host.undo(true); Toast.makeText(ctx, "다시 실행", Toast.LENGTH_SHORT).show(); return true; });
+        LinearLayout.LayoutParams ulp = new LinearLayout.LayoutParams(px(38), px(36));
+        ulp.setMargins(px(2), 0, px(2), 0);
+        bar.addView(undo, ulp);
 
         // 복사 · 잘라내기 · 붙여넣기 (아이콘만)
         int[] kinds = {IconView.COPY, IconView.CUT, IconView.PASTE};
@@ -110,16 +114,16 @@ public class ExtraPanels {
         for (int i = 0; i < 3; i++) {
             final int id = ids[i];
             IconView iv = new IconView(ctx, kinds[i]);
-            iv.setBackground(round(0xFFD3D7DC));
+            iv.setBackground(round(Theme.PANEL_FUNC));
             iv.setOnLongClickListener(v -> { Toast.makeText(ctx, iv.getContentDescription(), Toast.LENGTH_SHORT).show(); return true; });
             iv.setOnClickListener(v -> host.contextAction(id));
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(px(38), px(36));
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(px(36), px(36));
             lp.setMargins(px(2), 0, px(2), 0);
             bar.addView(iv, lp);
         }
         // 음성 입력 (끝)
         mic = new IconView(ctx, IconView.MIC);
-        mic.setBackground(round(CHIP));
+        mic.setBackground(round(Theme.CHIP));
         mic.setOnClickListener(v -> host.toggleVoice());
         LinearLayout.LayoutParams mlp2 = new LinearLayout.LayoutParams(px(38), px(36));
         mlp2.setMargins(px(2), 0, px(2), 0);
@@ -159,7 +163,7 @@ public class ExtraPanels {
         }
         suggestRow.removeAllViews();
         TextView menu = chip("≡", 16);
-        menu.setBackground(round(0xFFD3D7DC));
+        menu.setBackground(round(Theme.PANEL_FUNC));
         menu.setOnClickListener(v -> {           // 툴바로 돌아가기
             suppressedToken = token;
             suggestScroll.setVisibility(View.GONE);
@@ -191,12 +195,12 @@ public class ExtraPanels {
         TextView t = new TextView(ctx);
         t.setText(text);
         t.setTextSize(sp);
-        t.setTextColor(TEXT);
+        t.setTextColor(Theme.TEXT);
         t.setGravity(Gravity.CENTER);
         t.setSingleLine(true);
         t.setEllipsize(TextUtils.TruncateAt.END);
         t.setPadding(px(6), 0, px(6), 0);
-        t.setBackground(round(CHIP));
+        t.setBackground(round(Theme.CHIP));
         return t;
     }
 
@@ -220,7 +224,7 @@ public class ExtraPanels {
         open = -1;
         content.removeAllViews();
         content.addView(keyboard);
-        for (View t : tabs) t.setBackground(round(CHIP));
+        for (View t : tabs) t.setBackground(round(Theme.CHIP));
     }
 
     private void showPanel(int idx, View panel) {
@@ -229,7 +233,7 @@ public class ExtraPanels {
         int h = keyboard.getHeight() > 0 ? keyboard.getHeight() : px(280);
         content.removeAllViews();
         content.addView(panel, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, h));
-        for (int i = 0; i < tabs.length; i++) tabs[i].setBackground(round(i == idx ? ACTIVE : CHIP));
+        for (int i = 0; i < tabs.length; i++) tabs[i].setBackground(round(i == idx ? Theme.ACTIVE : Theme.CHIP));
     }
 
     private void refresh() {
@@ -287,7 +291,7 @@ public class ExtraPanels {
         row.setOrientation(LinearLayout.HORIZONTAL);
         for (int i = 0; i < labels.length; i++) {
             TextView b = chip(labels[i], 13);
-            b.setBackground(round(0xFFD3D7DC));
+            b.setBackground(round(Theme.PANEL_FUNC));
             b.setOnClickListener(actions[i]);
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, px(34), 1f);
             lp.setMargins(px(3), px(2), px(3), px(4));
@@ -301,11 +305,11 @@ public class ExtraPanels {
         LinearLayout row = new LinearLayout(ctx);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setBackground(round(pinned ? 0xFFFFF8E1 : CHIP));
+        row.setBackground(round(pinned ? Theme.PINNED_CLIP : Theme.CHIP));
         TextView t = new TextView(ctx);
         t.setText(text.replace('\n', ' '));
         t.setTextSize(15);
-        t.setTextColor(TEXT);
+        t.setTextColor(Theme.TEXT);
         t.setMaxLines(2);
         t.setEllipsize(TextUtils.TruncateAt.END);
         t.setPadding(px(12), px(10), px(6), px(10));
@@ -321,7 +325,7 @@ public class ExtraPanels {
         TextView x = new TextView(ctx);
         x.setText("✕");
         x.setTextSize(15);
-        x.setTextColor(SUB);
+        x.setTextColor(Theme.SUB);
         x.setGravity(Gravity.CENTER);
         x.setOnClickListener(v -> {
             String key = pinned ? "pins" : "clips";
@@ -342,11 +346,11 @@ public class ExtraPanels {
         LinearLayout row = new LinearLayout(ctx);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setBackground(round(CHIP));
+        row.setBackground(round(Theme.CHIP));
         TextView t = new TextView(ctx);
         t.setText(text.replace('\n', ' '));
         t.setTextSize(15);
-        t.setTextColor(TEXT);
+        t.setTextColor(Theme.TEXT);
         t.setMaxLines(2);
         t.setEllipsize(TextUtils.TruncateAt.END);
         t.setPadding(px(12), px(10), px(6), px(10));
@@ -356,7 +360,7 @@ public class ExtraPanels {
             TextView x = new TextView(ctx);
             x.setText("✕");
             x.setTextSize(15);
-            x.setTextColor(SUB);
+            x.setTextColor(Theme.SUB);
             x.setGravity(Gravity.CENTER);
             x.setOnClickListener(onDelete);
             row.addView(x, new LinearLayout.LayoutParams(px(44), px(44)));
@@ -371,7 +375,7 @@ public class ExtraPanels {
         TextView t = new TextView(ctx);
         t.setText(s);
         t.setTextSize(13);
-        t.setTextColor(SUB);
+        t.setTextColor(Theme.SUB);
         t.setPadding(px(8), px(10), px(8), px(10));
         return t;
     }
@@ -502,7 +506,7 @@ public class ExtraPanels {
         if (!hidden.contains(word)) hidden.add(word);
         Store.save(ctx, "hiddenWords", hidden);
         w.setText(rotate(cat, index, false));
-        w.setBackground(round(CHIP));
+        w.setBackground(round(Theme.CHIP));
         saveLayout(cat);
         Toast.makeText(ctx, "'" + word + "' 숨김 (앱 화면에서 복구 가능)", Toast.LENGTH_SHORT).show();
     }
@@ -515,7 +519,7 @@ public class ExtraPanels {
         TextView hint = new TextView(ctx);
         hint.setText("누르면 입력 · 2번 쓴 단어 고정 · 길게=숨김 · 빈 곳 누르면 닫기");
         hint.setTextSize(11);
-        hint.setTextColor(SUB);
+        hint.setTextColor(Theme.SUB);
         hint.setSingleLine(true);
         hint.setEllipsize(TextUtils.TruncateAt.END);
         hint.setPadding(px(6), px(1), px(6), px(2));
@@ -530,7 +534,7 @@ public class ExtraPanels {
             final int cat = c;
             TextView t = chip(Words.ALL[c].tab, 12.5f);
             t.setPadding(px(10), 0, px(10), 0);
-            t.setBackground(round(c == wordTab ? ACTIVE : CHIP));
+            t.setBackground(round(c == wordTab ? Theme.ACTIVE : Theme.CHIP));
             t.setOnClickListener(v -> {
                 wordTab = cat;
                 showPanel(3, emotionPanel());
@@ -553,13 +557,13 @@ public class ExtraPanels {
                 final int index = r * 4 + c;
                 final TextView w = chip(words.get(index), 15);
                 w.setTypeface(Typeface.DEFAULT_BOLD);
-                if (pinned(words.get(index))) w.setBackground(round(PINNED));
+                if (pinned(words.get(index))) w.setBackground(round(Theme.PINNED));
                 w.setOnClickListener(v -> {
                     String word = shownFor(cat).get(index);
                     if (word.isEmpty()) return;
                     host.replaceWord(word);
                     if (countUse(word) >= PIN_COUNT) {
-                        w.setBackground(round(PINNED));   // 자주 쓰는 단어: 자리 고정
+                        w.setBackground(round(Theme.PINNED));   // 자주 쓰는 단어: 자리 고정
                         return;
                     }
                     w.setText(rotate(cat, index, true));

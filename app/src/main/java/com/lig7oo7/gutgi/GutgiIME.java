@@ -59,6 +59,7 @@ public class GutgiIME extends InputMethodService implements KeyboardView.Listene
         hanRows = Layouts.hangul();
         engRows = Layouts.english();
         symRows = Layouts.symbols();
+        Theme.load(this);
         view = new KeyboardView(this);
         view.setListener(this);
         panels = new ExtraPanels(this, this, view);
@@ -101,6 +102,7 @@ public class GutgiIME extends InputMethodService implements KeyboardView.Listene
             java.util.List<String> l = new java.util.ArrayList<>();
             l.addAll(Store.load(this, "userWords"));      // 내 단어가 먼저
             l.addAll(Store.pins(this));                   // 📌 고정 항목도 추천
+            l.addAll(learnedWords());                     // 자주 쓴 말 (2번 이상)
             l.addAll(java.util.Arrays.asList(Dict.WORDS));
             l.addAll(java.util.Arrays.asList(Dict.ENGLISH));
             dictCache = l;
@@ -140,7 +142,7 @@ public class GutgiIME extends InputMethodService implements KeyboardView.Listene
         int var = ei == null ? 0 : ei.inputType & InputType.TYPE_MASK_VARIATION;
         boolean email = var == InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS
                 || var == InputType.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS;
-        panels.setSuggestions(tok, Suggest.compute(tok, email, dict(), java.util.Arrays.asList(Dict.DOMAINS), usageMap()));
+        panels.setSuggestions(tok, Suggest.compute(tok, email, dict(), java.util.Arrays.asList(Dict.DOMAINS), usageMap(), rates()));
     }
 
     /** 추천 칩 선택: 입력 중이던 조각(조합 중인 글자 포함)을 지우고 완성 단어로 바꾼다 */
@@ -257,6 +259,109 @@ public class GutgiIME extends InputMethodService implements KeyboardView.Listene
         if (panels != null) panels.setVoiceActive(on);
     }
 
+    // ───────── 되돌리기 (입력칸의 실행 취소 기능: Ctrl+Z) ─────────
+    @Override
+    public void undo(boolean redo) {
+        InputConnection ic = getCurrentInputConnection();
+        if (ic == null) return;
+        commitComposing();
+        int meta = KeyEvent.META_CTRL_ON | KeyEvent.META_CTRL_LEFT_ON | (redo ? KeyEvent.META_SHIFT_ON : 0);
+        long now = android.os.SystemClock.uptimeMillis();
+        ic.sendKeyEvent(new KeyEvent(now, now, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_Z, 0, meta));
+        ic.sendKeyEvent(new KeyEvent(now, now, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_Z, 0, meta));
+    }
+
+    // ───────── ⌫ 끌어서 단어 단위 삭제 ─────────
+    private int dwAnchor = -1, dwSteps;
+    private final java.util.ArrayList<Integer> dwOffsets = new java.util.ArrayList<>();
+
+    private void wordDelBegin(InputConnection ic) {
+        commitComposing();
+        dwSteps = 0;
+        dwOffsets.clear();
+        CharSequence before = ic.getTextBeforeCursor(400, 0);
+        String b = before == null ? "" : before.toString();
+        int i = b.length();
+        while (i > 0 && dwOffsets.size() < 60) {
+            while (i > 0 && Character.isWhitespace(b.charAt(i - 1))) i--;
+            while (i > 0 && !Character.isWhitespace(b.charAt(i - 1))) i--;
+            dwOffsets.add(b.length() - i);
+        }
+        ExtractedText et = ic.getExtractedText(new ExtractedTextRequest(), 0);
+        dwAnchor = et == null ? -1 : et.startOffset + Math.max(et.selectionStart, et.selectionEnd);
+    }
+
+    private void wordDelStep(InputConnection ic, int d) {
+        dwSteps = Math.max(0, Math.min(dwOffsets.size(), dwSteps + d));
+        if (dwAnchor < 0) return;   // 미리보기 불가한 입력칸: 손 뗄 때 지움
+        int len = dwSteps == 0 ? 0 : dwOffsets.get(dwSteps - 1);
+        ic.setSelection(dwAnchor - len, dwAnchor);
+    }
+
+    private void wordDelEnd(InputConnection ic) {
+        int len = dwSteps == 0 ? 0 : dwOffsets.get(dwSteps - 1);
+        if (len > 0) {
+            if (dwAnchor >= 0) ic.commitText("", 1);          // 선택된 단어들 삭제
+            else ic.deleteSurroundingText(len, 0);
+        } else if (dwAnchor >= 0) {
+            ic.setSelection(dwAnchor, dwAnchor);
+        }
+        dwSteps = 0;
+        dwAnchor = -1;
+    }
+
+    // ───────── 자주 쓰는 말 학습 (폰 안에만 저장, 비밀번호 칸 제외) ─────────
+    private java.util.Map<String, Integer> learned;
+
+    private java.util.Map<String, Integer> learnedMap() {
+        if (learned == null) {
+            learned = new java.util.HashMap<>();
+            for (String e : Store.load(this, "learned")) {
+                int i = e.lastIndexOf('\t');
+                if (i > 0) try { learned.put(e.substring(0, i), Integer.parseInt(e.substring(i + 1))); } catch (Exception ignored) { }
+            }
+        }
+        return learned;
+    }
+
+    private java.util.List<String> learnedWords() {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        for (java.util.Map.Entry<String, Integer> e : learnedMap().entrySet()) if (e.getValue() >= 2) out.add(e.getKey());
+        return out;
+    }
+
+    private void learnBeforeCursor(InputConnection ic) {
+        if (isPrivateField() || !getSharedPreferences("gutgi", MODE_PRIVATE).getBoolean("learn", true)) return;
+        String w = Suggest.token(ic.getTextBeforeCursor(40, 0)).replaceAll("[.,?!~^]+$", "");
+        boolean ko = w.matches("[가-힣]{2,12}");
+        boolean en = w.matches("[A-Za-z]{3,20}");
+        if (!ko && !en) return;                       // 숫자(전화·인증번호)는 배우지 않음
+        java.util.Map<String, Integer> m = learnedMap();
+        int n = (m.containsKey(w) ? m.get(w) : 0) + 1;
+        m.put(w, n);
+        if (m.size() > 500) {                         // 오래 안 쓴(적게 쓴) 것부터 정리
+            String min = null;
+            for (java.util.Map.Entry<String, Integer> e : m.entrySet())
+                if (min == null || e.getValue() < m.get(min)) min = e.getKey();
+            m.remove(min);
+        }
+        java.util.List<String> out = new java.util.ArrayList<>();
+        for (java.util.Map.Entry<String, Integer> e : m.entrySet()) out.add(e.getKey() + "\t" + e.getValue());
+        Store.save(this, "learned", out);
+        if (n == 2 && dictCache != null) dictCache.add(w);
+    }
+
+    // ───────── 환율 (설정에 직접 적어둔 값) ─────────
+    private java.util.Map<String, Double> rates() {
+        android.content.SharedPreferences sp = getSharedPreferences("gutgi", MODE_PRIVATE);
+        java.util.Map<String, Double> r = new java.util.HashMap<>();
+        for (String c : new String[]{"USD", "JPY", "EUR", "CNY"}) {
+            float v = sp.getFloat("rate_" + c, 0f);
+            if (v > 0) r.put(c, (double) v);
+        }
+        return r;
+    }
+
     /** 키보드를 내리고 화면 캡처 (화면 공유 세션이 살아 있으면 동의 없이 바로) */
     @Override
     public void takeScreenshot() {
@@ -323,6 +428,7 @@ public class GutgiIME extends InputMethodService implements KeyboardView.Listene
     @Override
     public void onStartInputView(EditorInfo info, boolean restarting) {
         super.onStartInputView(info, restarting);
+        if (Theme.load(this) && view != null) setInputView(onCreateInputView());   // 다크 모드·키 높이 변경 반영
         hc.reset();
         shift = 0;
         if (panels != null) {
@@ -330,6 +436,7 @@ public class GutgiIME extends InputMethodService implements KeyboardView.Listene
         }
         lastWord = null;
         dictCache = null;   // 상용구·내 단어 변경 반영
+        learned = null;
         scheduleSuggest();
         int cls = info.inputType & InputType.TYPE_MASK_CLASS;
         int var = info.inputType & InputType.TYPE_MASK_VARIATION;
@@ -431,6 +538,10 @@ public class GutgiIME extends InputMethodService implements KeyboardView.Listene
                 ic.setSelection(selAnchor - selCount, selAnchor);
                 return;
             }
+            case "@DWBEGIN": wordDelBegin(ic); return;
+            case "@DWMORE": wordDelStep(ic, 1); return;
+            case "@DWLESS": wordDelStep(ic, -1); return;
+            case "@DWEND": wordDelEnd(ic); return;
             case "@SELALL":
                 commitComposing();
                 ic.performContextMenuAction(android.R.id.selectAll);
@@ -461,10 +572,12 @@ public class GutgiIME extends InputMethodService implements KeyboardView.Listene
                 return;
             case "@ENTER":
                 commitComposing();
+                learnBeforeCursor(ic);
                 handleEnter(ic);
                 return;
             case "@SPACE":
                 commitComposing();
+                learnBeforeCursor(ic);
                 ic.commitText(" ", 1);
                 return;
             case "@LEFT":
@@ -509,6 +622,7 @@ public class GutgiIME extends InputMethodService implements KeyboardView.Listene
         }
 
         commitComposing();
+        if (t.length() == 1 && ".,?!~".indexOf(t.charAt(0)) >= 0) learnBeforeCursor(ic);
         String text = t;
         if (mode == ENG && shift > 0 && t.length() == 1 && Character.isLetter(t.charAt(0))) {
             text = t.toUpperCase();

@@ -36,6 +36,13 @@ public class Suggest {
     static int jungOf(char c) { return ((c - 0xAC00) % 588) / 28; }
     static int jongOf(char c) { return (c - 0xAC00) % 28; }
 
+    private static double rateOf(String tok, Map<String, Double> rates) {
+        String l = Calc.unitLabel(tok);
+        String k = l.contains("달러") ? "USD" : l.contains("엔") ? "JPY" : l.contains("유로") ? "EUR" : "CNY";
+        Double r = rates.get(k);
+        return r == null ? 0 : r;
+    }
+
     /** 커서 앞에서 공백·줄바꿈 이후의 조각 */
     public static String token(CharSequence before) {
         if (before == null) return "";
@@ -91,8 +98,32 @@ public class Suggest {
      */
     public static List<Item> compute(String tok, boolean emailField, List<String> words,
                                      List<String> domains, Map<String, Integer> usage) {
+        return compute(tok, emailField, words, domains, usage, null);
+    }
+
+    public static List<Item> compute(String tok, boolean emailField, List<String> words,
+                                     List<String> domains, Map<String, Integer> usage,
+                                     Map<String, Double> rates) {
         List<Item> out = new ArrayList<>();
         if (tok == null || tok.isEmpty()) return out;
+
+        // 계산기: 12500+3000 → "=15,500" (수식 뒤에 붙이기) / "15,500" (결과로 바꾸기)
+        Double v = Calc.eval(tok);
+        if (v != null) {
+            boolean endsEq = tok.endsWith("=");
+            out.add(new Item("= " + Calc.fmt(v), (endsEq ? "" : "=") + Calc.plain(v), 0, null, false));
+            out.add(new Item("→ " + Calc.fmt(v), Calc.fmt(v), tok.length(), null, false));
+            return out;
+        }
+        // 환율 (설정에 적어둔 값): 10달러 → 약 14,000원
+        double[] won = Calc.toWon(tok, rates);
+        if (won != null) {
+            String w = Calc.fmt(Math.round(won[0])) + "원";
+            out.add(new Item(tok + " ≈ " + w, "(약 " + w + ")", 0, null, false));
+            out.add(new Item("→ " + w, w, tok.length(), null, false));
+            out.add(new Item("기준 " + Calc.unitLabel(tok) + "=" + Calc.fmt(rateOf(tok, rates)) + "원", "", 0, null, false));
+            return out;
+        }
 
         // 0) 저장해 둔 내 이메일 주소: 앞 2글자부터 주소 전체 추천
         if (tok.length() >= 2 && tok.matches("[A-Za-z0-9._%+@-]+")) {

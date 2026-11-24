@@ -21,15 +21,6 @@ public class KeyboardView extends View {
 
     public interface Listener { void onOutput(String token); }
 
-    private static final int BG = 0xFFE8EBEF;
-    private static final int KEY = 0xFFFFFFFF;
-    private static final int FUNC = 0xFFD3D7DC;
-    private static final int PRESSED = 0xFFCBD5E1;
-    private static final int SHADOW = 0xFFBFC5CC;
-    private static final int TEXT = 0xFF37474F;
-    private static final int SUB = 0xFF7D8892;
-    private static final int ACCENT = 0xFFE0245E;
-    private static final int SHIFT_ON = 0xFF9FD8CF;
 
     private Listener listener;
     private List<List<KeyDef>> rows;
@@ -40,19 +31,19 @@ public class KeyboardView extends View {
     private final SparseArray<Ptr> ptrs = new SparseArray<>();
     private final Handler handler = new Handler(Looper.getMainLooper());
     private Runnable repeater;
+    private boolean repeatFired;
     private int shift;
     private boolean laidOut;
     private boolean enterSearch;
     private String backLabel = "ㄱㄴㄷ";
     private final Paint iconPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Path path = new Path();
-    private static final int ICON = 0xFF6F767C;
 
     private static class Ptr {
         KeyDef key;
         float x0, y0, lastX, maxD;
         String dir = "";
-        boolean spaceDrag, selStarted;
+        boolean spaceDrag, selStarted, delWord;
         int selSteps;
     }
 
@@ -62,7 +53,7 @@ public class KeyboardView extends View {
         textPaint.setTextAlign(Paint.Align.CENTER);
         textPaint.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.NORMAL));
         subPaint.setTextAlign(Paint.Align.CENTER);
-        subPaint.setColor(SUB);
+        subPaint.setColor(Theme.SUB);
         setHapticFeedbackEnabled(true);
     }
 
@@ -87,7 +78,7 @@ public class KeyboardView extends View {
     @Override
     protected void onMeasure(int wSpec, int hSpec) {
         int width = MeasureSpec.getSize(wSpec);
-        int height = (int) (5 * 54 * dp + 10 * dp);
+        int height = (int) ((5 * 54 * dp) * Theme.keyScale + 10 * dp);
         setMeasuredDimension(width, height);
     }
 
@@ -127,7 +118,7 @@ public class KeyboardView extends View {
 
     @Override
     protected void onDraw(Canvas canvas) {
-        canvas.drawColor(BG);
+        canvas.drawColor(Theme.BG);
         if (rows == null) return;
         if (!laidOut) layoutKeys();
         float rad = 7 * dp;
@@ -136,17 +127,17 @@ public class KeyboardView extends View {
                 if (k.spacer) continue;
                 RectF r = k.rect;
                 Ptr p = ptrFor(k);
-                keyPaint.setColor(SHADOW);
+                keyPaint.setColor(Theme.SHADOW);
                 canvas.drawRoundRect(r.left, r.top + 1.5f * dp, r.right, r.bottom + 1.5f * dp, rad, rad, keyPaint);
-                int col = k.func ? FUNC : KEY;
-                if (k.isShift && shift > 0) col = SHIFT_ON;
-                if (p != null) col = PRESSED;
+                int col = k.func ? Theme.FUNC : Theme.KEY;
+                if (k.isShift && shift > 0) col = Theme.SHIFT_ON;
+                if (p != null) col = Theme.PRESSED;
                 keyPaint.setColor(col);
                 canvas.drawRoundRect(r, rad, rad, keyPaint);
 
                 float cx = r.centerX(), cy = r.centerY();
                 if (p != null && p.dir.length() > 0 && k.has(p.dir)) {
-                    textPaint.setColor(ACCENT);
+                    textPaint.setColor(Theme.ACCENT);
                     textPaint.setFakeBoldText(true);
                     textPaint.setTextSize(Math.min(r.height() * 0.55f, 30 * dp));
                     drawCentered(canvas, caseOf(k, k.display(p.dir)), cx, cy, textPaint);
@@ -160,7 +151,7 @@ public class KeyboardView extends View {
                 main = caseOf(k, main);
                 if (k.below != null) {
                     // 영어 키: 글자는 위쪽, 기호는 아래쪽에 작게
-                    textPaint.setColor(TEXT);
+                    textPaint.setColor(Theme.TEXT);
                     textPaint.setTextSize(Math.min(r.height() * 0.40f, 26 * dp));
                     drawCentered(canvas, main, cx, r.top + r.height() * 0.40f, textPaint);
                     float bs = Math.min(r.height() * 0.17f, 12 * dp);
@@ -168,7 +159,7 @@ public class KeyboardView extends View {
                     drawCentered(canvas, k.below, cx, r.top + r.height() * 0.78f, subPaint);
                     continue;
                 }
-                textPaint.setColor(TEXT);
+                textPaint.setColor(Theme.TEXT);
                 float big = main.length() <= 1 ? Math.min(r.height() * 0.44f, 26 * dp)
                         : Math.min(r.height() * 0.32f, 19 * dp);
                 textPaint.setTextSize(big);
@@ -203,7 +194,7 @@ public class KeyboardView extends View {
                 path.lineTo(cx + w / 2, cy + h / 2);
                 path.lineTo(cx - w / 2 + h * 0.55f, cy + h / 2);
                 path.close();
-                iconPaint.setColor(ICON);
+                iconPaint.setColor(Theme.ICON);
                 c.drawPath(path, iconPaint);
                 iconPaint.setColor(0xFFFFFFFF);
                 iconPaint.setStyle(Paint.Style.STROKE);
@@ -250,7 +241,7 @@ public class KeyboardView extends View {
                 break;
             }
             case "SHIFT": {
-                iconPaint.setColor(shift > 0 ? 0xFF00897B : ICON);
+                iconPaint.setColor(shift > 0 ? 0xFF00897B : Theme.ICON);
                 float w = u * 1.4f, top = cy - u * 1.3f, mid = cy, bot = cy + u * 1.0f;
                 path.reset();
                 path.moveTo(cx, top);
@@ -306,7 +297,13 @@ public class KeyboardView extends View {
     }
 
     private void release(Ptr p) {
-        if (p.key.repeat) { stopRepeat(); return; }
+        if (p.key.repeat) {
+            boolean fired = repeatFired;
+            stopRepeat();
+            if (p.delWord) emit("@DWEND");
+            else if (!fired) emit(p.key.tap);   // 짧게 탭 = 한 글자 삭제
+            return;
+        }
         if ((p.key.space || p.key.selDrag) && p.spaceDrag) return;
         emit(p.key.outFor(p.dir));
     }
@@ -332,7 +329,7 @@ public class KeyboardView extends View {
                 p.key = k; p.x0 = x; p.y0 = y; p.lastX = x;
                 ptrs.put(e.getPointerId(idx), p);
                 performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
-                if (k.repeat) { emit(k.tap); startRepeat(k.tap); }
+                if (k.repeat) startRepeat(k.tap);   // 탭은 손 뗄 때 지움, 길게 누르면 연속 삭제
                 invalidate();
                 break;
             }
@@ -360,7 +357,22 @@ public class KeyboardView extends View {
                         invalidate();
                         continue;
                     }
-                    if (p.key.repeat) continue;
+                    if (p.key.repeat) {
+                        // ⌫ 를 왼쪽으로 끌면 단어 단위로 선택 → 손 떼면 삭제 (오른쪽으로 되돌리면 줄어듦)
+                        float back = p.x0 - x;
+                        if (!p.delWord && !repeatFired && back > 20 * dp) {
+                            p.delWord = true;
+                            stopRepeat();
+                            emit("@DWBEGIN");
+                        }
+                        if (p.delWord) {
+                            int want = (int) Math.max(1, 1 + (back - 20 * dp) / (28 * dp));
+                            if (back < 10 * dp) want = 0;
+                            while (p.selSteps < want) { emit("@DWMORE"); p.selSteps++; }
+                            while (p.selSteps > want) { emit("@DWLESS"); p.selSteps--; }
+                        }
+                        continue;
+                    }
                     float dx = x - p.x0, dy = y - p.y0;
                     float d = (float) Math.hypot(dx, dy);
                     if (d > p.maxD) {
@@ -398,8 +410,10 @@ public class KeyboardView extends View {
 
     private void startRepeat(final String t) {
         stopRepeat();
+        repeatFired = false;
         repeater = new Runnable() {
             @Override public void run() {
+                repeatFired = true;
                 emit(t);
                 handler.postDelayed(this, 50);
             }
