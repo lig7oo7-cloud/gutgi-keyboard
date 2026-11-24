@@ -67,14 +67,15 @@ public class ExtraPanels {
         LinearLayout bar = new LinearLayout(ctx);
         bar.setOrientation(LinearLayout.HORIZONTAL);
         bar.setPadding(px(4), px(4), px(4), px(2));
-        int[] tabIcons = {IconView.GEMINI, IconView.HISTORY, IconView.PHRASE};
+        int[] tabIcons = {IconView.GEMINI, IconView.HISTORY};
         for (int i = 0; i < 4; i++) {
             final int idx = i;
             View t;
             LinearLayout.LayoutParams lp;
-            if (i < 3) {
+            if (i == 2) { tabs[i] = new View(ctx); continue; }   // (예전 상용구 자리 — 클립보드로 합침)
+            if (i < 2) {
                 t = new IconView(ctx, tabIcons[i]);
-                lp = new LinearLayout.LayoutParams(px(40), px(36));
+                lp = new LinearLayout.LayoutParams(px(44), px(36));
             } else {
                 TextView tv = chip("🎯 상황어", 13);
                 tv.setTypeface(Typeface.DEFAULT_BOLD);
@@ -197,7 +198,6 @@ public class ExtraPanels {
         if (open == idx) { showKeyboard(); return; }
         View panel;
         if (idx == 1) panel = clipboardPanel();
-        else if (idx == 2) panel = phrasePanel();
         else panel = emotionPanel();
         showPanel(idx, panel);
     }
@@ -220,7 +220,6 @@ public class ExtraPanels {
 
     private void refresh() {
         if (open == 1) showPanel(1, clipboardPanel());
-        else if (open == 2) showPanel(2, phrasePanel());
     }
 
     // ───────── 제미나이 ─────────
@@ -283,6 +282,47 @@ public class ExtraPanels {
         return row;
     }
 
+    /** 클립보드 한 줄: 글(탭=입력) + 📌 고정 + ✕ 삭제 */
+    private View clipItem(final String text, final boolean pinned) {
+        LinearLayout row = new LinearLayout(ctx);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setBackground(round(pinned ? 0xFFFFF8E1 : CHIP));
+        TextView t = new TextView(ctx);
+        t.setText(text.replace('\n', ' '));
+        t.setTextSize(15);
+        t.setTextColor(TEXT);
+        t.setMaxLines(2);
+        t.setEllipsize(TextUtils.TruncateAt.END);
+        t.setPadding(px(12), px(10), px(6), px(10));
+        t.setOnClickListener(v -> host.insertText(text));
+        row.addView(t, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        TextView pin = new TextView(ctx);
+        pin.setText("📌");
+        pin.setTextSize(15);
+        pin.setGravity(Gravity.CENTER);
+        pin.setAlpha(pinned ? 1f : 0.3f);
+        pin.setOnClickListener(v -> { Store.togglePin(ctx, text); refresh(); });
+        row.addView(pin, new LinearLayout.LayoutParams(px(42), px(44)));
+        TextView x = new TextView(ctx);
+        x.setText("✕");
+        x.setTextSize(15);
+        x.setTextColor(SUB);
+        x.setGravity(Gravity.CENTER);
+        x.setOnClickListener(v -> {
+            String key = pinned ? "pins" : "clips";
+            List<String> l = pinned ? Store.pins(ctx) : Store.clips(ctx);
+            l.remove(text);
+            Store.save(ctx, key, l);
+            refresh();
+        });
+        row.addView(x, new LinearLayout.LayoutParams(px(40), px(44)));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.setMargins(0, px(3), 0, px(3));
+        row.setLayoutParams(lp);
+        return row;
+    }
+
     /** 한 줄: 글 (탭하면 입력) + ✕ */
     private View item(String text, View.OnClickListener onTap, View.OnClickListener onDelete) {
         LinearLayout row = new LinearLayout(ctx);
@@ -335,63 +375,25 @@ public class ExtraPanels {
         } catch (Exception ignored) { }
 
         LinearLayout col = column();
-        col.addView(buttonRow(new String[]{"복사", "잘라내기", "붙여넣기", "기록 지우기"}, new View.OnClickListener[]{
-                v -> { host.contextAction(android.R.id.copy); v.postDelayed(this::refresh, 300); },
-                v -> { host.contextAction(android.R.id.cut); v.postDelayed(this::refresh, 300); },
-                v -> host.contextAction(android.R.id.paste),
+        col.addView(buttonRow(new String[]{"📌 선택한 글 고정", "기록 지우기 (고정 제외)"}, new View.OnClickListener[]{
+                v -> {
+                    CharSequence sel = host.selectedText();
+                    if (sel == null || sel.toString().trim().isEmpty()) {
+                        Toast.makeText(ctx, "먼저 글을 선택하세요 (sel 키)", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    String t = sel.toString().trim();
+                    if (!Store.pins(ctx).contains(t)) Store.togglePin(ctx, t);
+                    refresh();
+                },
                 v -> { Store.save(ctx, "clips", new java.util.ArrayList<>()); refresh(); }
         }));
+        List<String> pins = Store.pins(ctx);
         List<String> clips = Store.clips(ctx);
-        if (clips.isEmpty()) col.addView(note("복사한 글이 여기에 쌓여요. 탭하면 입력돼요."));
-        for (String c : clips) {
-            col.addView(item(c, v -> host.insertText(c), v -> {
-                List<String> l = Store.clips(ctx);
-                l.remove(c);
-                Store.save(ctx, "clips", l);
-                refresh();
-            }));
-        }
+        for (String p : pins) col.addView(clipItem(p, true));
+        for (String c : clips) col.addView(clipItem(c, false));
+        if (pins.isEmpty() && clips.isEmpty()) col.addView(note("복사한 글이 여기에 쌓여요. 📌 누르면 고정(상용구)."));
         return scroll(col);
-    }
-
-    // ───────── 상용구 ─────────
-    private View phrasePanel() {
-        LinearLayout col = column();
-        col.addView(buttonRow(new String[]{"＋ 선택한 글 추가", "＋ 최근 복사 추가", "편집"}, new View.OnClickListener[]{
-                v -> {
-                    CharSequence s = host.selectedText();
-                    addPhrase(s == null ? null : s.toString(), "먼저 글을 선택하세요 (sel 키)");
-                },
-                v -> {
-                    List<String> c = Store.clips(ctx);
-                    addPhrase(c.isEmpty() ? null : c.get(0), "복사한 글이 없어요");
-                },
-                v -> host.openApp("phrases")
-        }));
-        List<String> ph = Store.phrases(ctx);
-        if (ph.isEmpty()) col.addView(note("자주 쓰는 문구를 추가해 보세요."));
-        for (String p : ph) {
-            col.addView(item(p, v -> host.insertText(p), v -> {
-                List<String> l = Store.phrases(ctx);
-                l.remove(p);
-                Store.save(ctx, "phrases", l);
-                refresh();
-            }));
-        }
-        return scroll(col);
-    }
-
-    private void addPhrase(String s, String emptyMsg) {
-        if (s == null || s.trim().isEmpty()) {
-            Toast.makeText(ctx, emptyMsg, Toast.LENGTH_SHORT).show();
-            return;
-        }
-        List<String> l = Store.phrases(ctx);
-        l.remove(s);
-        l.add(0, s);
-        Store.save(ctx, "phrases", l);
-        refresh();
-        Toast.makeText(ctx, "상용구에 추가했어요", Toast.LENGTH_SHORT).show();
     }
 
     // ───────── 🎯 상황어 (카톡 이모티콘 추천 유도) ─────────

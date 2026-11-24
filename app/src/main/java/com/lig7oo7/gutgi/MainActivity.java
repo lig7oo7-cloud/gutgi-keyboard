@@ -67,24 +67,24 @@ public class MainActivity extends Activity {
         box.addView(pick);
 
         TextView phTitle = new TextView(this);
-        phTitle.setText("\n상용구 편집 (한 줄에 하나씩)");
+        phTitle.setText("\n📌 클립보드 고정 문구 편집 (한 줄에 하나씩)");
         phTitle.setTextSize(17);
         phTitle.setTextColor(Color.BLACK);
         box.addView(phTitle);
 
         final EditText phrases = new EditText(this);
         phrases.setMinLines(5);
-        phrases.setText(android.text.TextUtils.join("\n", Store.phrases(this)));
+        phrases.setText(android.text.TextUtils.join("\n", Store.pins(this)));
         box.addView(phrases);
 
         Button save = new Button(this);
-        save.setText("상용구 저장");
+        save.setText("고정 문구 저장");
         save.setOnClickListener(v -> {
             java.util.List<String> l = new java.util.ArrayList<>();
             for (String line : phrases.getText().toString().split("\n")) {
                 if (!line.trim().isEmpty()) l.add(line.trim());
             }
-            Store.save(this, "phrases", l);
+            Store.save(this, "pins", l);
             android.widget.Toast.makeText(this, "저장했어요", android.widget.Toast.LENGTH_SHORT).show();
         });
         box.addView(save);

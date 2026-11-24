@@ -36,6 +36,7 @@ public class Store {
 
     public static void addClip(Context c, String text) {
         if (text == null || text.trim().isEmpty()) return;
+        if (pins(c).contains(text)) return;   // 고정된 건 기록에 중복으로 안 쌓음
         List<String> l = clips(c);
         l.remove(text);
         l.add(0, text);
@@ -43,14 +44,35 @@ public class Store {
         save(c, "clips", l);
     }
 
-    public static List<String> phrases(Context c) {
-        if (!sp(c).contains("phrases")) {
-            List<String> d = new ArrayList<>();
-            d.add("지금 운전 중이라 이따 연락드릴게요.");
-            d.add("감사합니다!");
-            d.add("네 알겠습니다.");
-            save(c, "phrases", d);
+    /** 📌 고정 항목 (예전 상용구). 처음엔 기존 상용구를 그대로 옮겨온다 */
+    public static List<String> pins(Context c) {
+        SharedPreferences p = sp(c);
+        if (!p.contains("pins")) {
+            List<String> init = new ArrayList<>();
+            if (p.contains("phrases")) init.addAll(load(c, "phrases"));
+            else {
+                init.add("지금 운전 중이라 이따 연락드릴게요.");
+                init.add("감사합니다!");
+                init.add("네 알겠습니다.");
+            }
+            save(c, "pins", init);
         }
-        return load(c, "phrases");
+        return load(c, "pins");
+    }
+
+    /** 핀 고정/해제: 고정하면 기록에서 빠지고 위로, 해제하면 기록 맨 위로 */
+    public static void togglePin(Context c, String text) {
+        List<String> pins = pins(c);
+        List<String> clips = clips(c);
+        if (pins.remove(text)) {
+            clips.remove(text);
+            clips.add(0, text);
+            while (clips.size() > CLIP_MAX) clips.remove(clips.size() - 1);
+        } else {
+            pins.add(0, text);
+            clips.remove(text);
+        }
+        save(c, "pins", pins);
+        save(c, "clips", clips);
     }
 }
