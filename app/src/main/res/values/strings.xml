@@ -2,5 +2,4 @@
 <resources>
     <string name="app_name">굿기 키보드</string>
     <string name="subtype_ko">한국어 (굿기)</string>
-    <string name="shot_desc">키보드의 캡처 버튼을 누르면 키보드를 내리고 기본 스크린샷을 찍습니다. 화면 내용은 읽지 않습니다.</string>
 </resources>

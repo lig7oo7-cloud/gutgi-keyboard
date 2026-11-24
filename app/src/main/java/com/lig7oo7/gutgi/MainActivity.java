@@ -108,10 +108,6 @@ public class MainActivity extends Activity {
         });
         box.addView(saveWords);
 
-        Button acc = new Button(this);
-        acc.setText("📸 캡처 버튼 켜기 (접근성 › 굿기 키보드 캡처)");
-        acc.setOnClickListener(v -> startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));
-        box.addView(acc);
 
         Button unhide = new Button(this);
         unhide.setText("🎯 상황어: 숨긴 단어 복구 + 배치 초기화 (고정은 유지)");

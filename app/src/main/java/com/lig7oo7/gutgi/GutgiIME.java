@@ -170,21 +170,31 @@ public class GutgiIME extends InputMethodService implements KeyboardView.Listene
         scheduleSuggest();
     }
 
-    /** 키보드를 내리고 삼성 기본 스크린샷 찍기 (접근성 기능 사용) */
+    /** 키보드를 내리고 화면 캡처 (화면 공유 세션이 살아 있으면 동의 없이 바로) */
     @Override
     public void takeScreenshot() {
         commitComposing();
-        if (!ShotAccess.isOn()) {
-            Toast.makeText(this, "처음 한 번: 접근성 › 설치된 앱 › 굿기 키보드 캡처 를 켜 주세요", Toast.LENGTH_LONG).show();
-            Intent i = new Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS);
-            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            try { startActivity(i); } catch (Exception ignored) { }
-            return;
+        requestHideSelf(0);                                   // 키보드 내리기
+        if (ShotService.alive) {
+            ui.postDelayed(() -> {                            // 키보드가 완전히 내려간 뒤
+                ShotService.callback = ok -> ui.post(() -> Toast.makeText(this,
+                        ok ? "캡처 저장됨 (갤러리 › Screenshots)" : "캡처하지 못했어요", Toast.LENGTH_SHORT).show());
+                try {
+                    startService(new Intent(this, ShotService.class).setAction(ShotService.ACTION_CAPTURE));
+                } catch (Exception e) {
+                    ShotService.callback = null;
+                    launchShot();
+                }
+            }, 450);
+        } else {
+            launchShot();
         }
-        requestHideSelf(0);                                  // 키보드 내리기
-        ui.postDelayed(() -> {                               // 키보드가 완전히 내려간 뒤 찍기
-            if (!ShotAccess.shoot()) Toast.makeText(this, "캡처하지 못했어요", Toast.LENGTH_SHORT).show();
-        }, 450);
+    }
+
+    private void launchShot() {
+        Intent i = new Intent(this, ShotActivity.class);
+        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_NO_ANIMATION);
+        startActivity(i);
     }
 
     /** 감정 단어 버튼: 방금 넣은 단어가 커서 바로 앞에 그대로 있으면 지우고 새 단어로 교체 */
