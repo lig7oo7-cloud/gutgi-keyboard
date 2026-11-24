@@ -110,6 +110,8 @@ public class ExtraPanels {
             lp.setMargins(px(2), 0, px(2), 0);
             bar.addView(iv, lp);
         }
+        bar.setOnClickListener(v -> { if (open != -1) showKeyboard(); });
+
         // 툴바 자리 = 평소엔 툴바, 글자를 치면 추천 칩 줄 (삼성 키보드 방식, 높이 그대로)
         toolbar = bar;
         suggestRow = new LinearLayout(ctx);
@@ -545,7 +547,7 @@ public class ExtraPanels {
         col.setPadding(px(4), px(2), px(4), px(4));
 
         TextView hint = new TextView(ctx);
-        hint.setText("누르면 입력 · 2번 쓴 단어는 고정(초록) · 안 뜨는 단어는 길게 눌러 숨김");
+        hint.setText("누르면 입력 · 2번 쓴 단어 고정 · 길게=숨김 · 빈 곳 누르면 닫기");
         hint.setTextSize(11);
         hint.setTextColor(SUB);
         hint.setSingleLine(true);
@@ -605,6 +607,14 @@ public class ExtraPanels {
             grid.addView(row, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
         }
         col.addView(grid, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+
+        // 단어·분류 칸 말고 빈 곳(안내 줄, 칸 사이 틈, 여백)을 누르면 닫고 키보드로
+        View.OnClickListener closer = v -> showKeyboard();
+        col.setOnClickListener(closer);
+        hint.setOnClickListener(closer);
+        grid.setOnClickListener(closer);
+        chipRow.setOnClickListener(closer);
+        for (int i = 0; i < grid.getChildCount(); i++) grid.getChildAt(i).setOnClickListener(closer);
         return col;
     }
 

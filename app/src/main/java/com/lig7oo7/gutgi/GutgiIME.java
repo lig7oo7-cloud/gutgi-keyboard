@@ -101,6 +101,7 @@ public class GutgiIME extends InputMethodService implements KeyboardView.Listene
             l.addAll(Store.load(this, "userWords"));      // 내 단어가 먼저
             l.addAll(Store.phrases(this));                // 상용구도 추천
             l.addAll(java.util.Arrays.asList(Dict.WORDS));
+            l.addAll(java.util.Arrays.asList(Dict.ENGLISH));
             dictCache = l;
         }
         return dictCache;

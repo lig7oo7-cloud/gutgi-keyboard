@@ -34,4 +34,34 @@ public class Dict {
             "가능합니다", "불가능합니다", "모르겠어", "모르겠습니다", "궁금해", "부탁해", "부탁드립니다",
             "감사해요", "고마워요", "미안해요", "잠깐만", "잠시만요", "여보세요", "얼마예요", "계좌번호",
     };
+
+    /** 영어: 2~3글자 치면 앞글자로 추천 */
+    public static final String[] ENGLISH = {
+            "the", "and", "that", "have", "for", "not", "with", "you", "this", "but", "his", "from", "they",
+            "say", "her", "she", "will", "one", "all", "would", "there", "their", "what", "out", "about",
+            "who", "get", "which", "when", "make", "can", "like", "time", "just", "him", "know", "take",
+            "people", "into", "year", "your", "good", "some", "could", "them", "see", "other", "than",
+            "then", "now", "look", "only", "come", "its", "over", "think", "also", "back", "after", "use",
+            "two", "how", "our", "work", "first", "well", "way", "even", "new", "want", "because", "any",
+            "these", "give", "day", "most", "us", "hello", "thanks", "thank", "please", "sorry", "okay",
+            "yes", "yeah", "sure", "maybe", "today", "tomorrow", "tonight", "morning", "night", "weekend",
+            "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday", "love", "miss",
+            "great", "nice", "cool", "awesome", "amazing", "beautiful", "happy", "birthday",
+            "congratulations", "welcome", "goodbye", "later", "soon", "again", "always", "never",
+            "sometimes", "really", "very", "much", "more", "less", "where", "why", "home", "office", "house",
+            "school", "hospital", "store", "market", "restaurant", "coffee", "lunch", "dinner", "breakfast",
+            "meeting", "call", "message", "email", "phone", "address", "number", "delivery", "order",
+            "pickup", "arrived", "arriving", "coming", "going", "leaving", "waiting", "busy", "free",
+            "available", "tired", "hungry", "check", "confirm", "cancel", "schedule", "appointment", "apple",
+            "orchard", "farm", "tree", "fruit", "harvest", "weather", "rain", "snow", "sunny", "cloudy",
+            "windy", "cold", "hot", "warm", "google", "gmail", "naver", "kakao", "samsung", "galaxy",
+            "youtube", "instagram", "facebook", "amazon", "netflix", "chatgpt", "gemini", "claude",
+            "account", "password", "login", "download", "upload", "update", "install", "keyboard",
+            "computer", "internet", "wifi", "bluetooth", "battery", "charger", "screen", "camera", "picture",
+            "photo", "video", "music", "information", "question", "answer", "problem", "solution",
+            "important", "interesting", "different", "difficult", "possible", "impossible", "necessary",
+            "probably", "definitely", "exactly", "actually", "basically", "before", "between", "during",
+            "without", "through", "around", "together", "another", "anything", "everything", "something",
+            "nothing", "someone", "everyone", "anyone", "everybody",
+    };
 }

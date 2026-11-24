@@ -105,7 +105,31 @@ public class Suggest {
             return out;
         }
 
-        // 2) 초성·접두사 (한글이 들어 있을 때만, 한 글자 초성은 너무 많아서 2글자부터)
+        // 2) 영어 앞글자 (2글자부터)
+        if (tok.matches("[A-Za-z]{2,}")) {
+            String low = tok.toLowerCase();
+            boolean cap = Character.isUpperCase(tok.charAt(0));
+            boolean allCap = tok.length() > 1 && tok.equals(tok.toUpperCase());
+            List<String> eh = new ArrayList<>();
+            for (String w : words) {
+                if (w == null || w.length() <= tok.length() || eh.contains(w)) continue;
+                if (w.toLowerCase().startsWith(low) && w.matches("[A-Za-z][A-Za-z '\\-]*")) eh.add(w);
+            }
+            final Map<String, Integer> u0 = usage;
+            Collections.sort(eh, (a, b) -> {
+                int ua = u0.containsKey(a) ? u0.get(a) : 0, ub = u0.containsKey(b) ? u0.get(b) : 0;
+                if (ua != ub) return ub - ua;
+                return a.length() - b.length();
+            });
+            for (String w : eh) {
+                if (out.size() >= MAX) break;
+                String shown = allCap ? w.toUpperCase() : cap ? Character.toUpperCase(w.charAt(0)) + w.substring(1) : w;
+                out.add(new Item(shown, shown, tok.length(), w));
+            }
+            return out;
+        }
+
+        // 3) 초성·접두사 (한글이 들어 있을 때만, 한 글자 초성은 너무 많아서 2글자부터)
         if (!hasHangul(tok)) return out;
         if (hasChoOnly(tok) && tok.length() < 2) return out;
         List<String> hits = new ArrayList<>();
