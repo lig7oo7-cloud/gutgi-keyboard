@@ -16,8 +16,13 @@ public class Suggest {
         public final String insert;    // 실제로 넣을 글자
         public final int deleteBefore; // 넣기 전에 지울 글자 수 (입력 중이던 조각)
         public final String learnKey;  // 사용 횟수 기록용 (null 이면 기록 안 함)
+        public final boolean space;    // 넣은 뒤 띄어쓰기
         Item(String label, String insert, int deleteBefore, String learnKey) {
-            this.label = label; this.insert = insert; this.deleteBefore = deleteBefore; this.learnKey = learnKey;
+            this(label, insert, deleteBefore, learnKey, learnKey != null);
+        }
+        Item(String label, String insert, int deleteBefore, String learnKey, boolean space) {
+            this.label = label; this.insert = insert; this.deleteBefore = deleteBefore;
+            this.learnKey = learnKey; this.space = space;
         }
         @Override public String toString() { return label + "(-" + deleteBefore + "+" + insert + ")"; }
     }
@@ -89,6 +94,19 @@ public class Suggest {
         List<Item> out = new ArrayList<>();
         if (tok == null || tok.isEmpty()) return out;
 
+        // 0) 저장해 둔 내 이메일 주소: 앞 2글자부터 주소 전체 추천
+        if (tok.length() >= 2 && tok.matches("[A-Za-z0-9._%+@-]+")) {
+            String low = tok.toLowerCase();
+            for (String w : words) {
+                if (w == null || w.indexOf('@') <= 0 || w.contains(" ")) continue;
+                if (w.toLowerCase().startsWith(low) && !w.equalsIgnoreCase(tok)) {
+                    boolean dup = false;
+                    for (Item it : out) if (it.label.equals(w)) dup = true;
+                    if (!dup) out.add(new Item(w, w, tok.length(), w, false));
+                }
+            }
+        }
+
         // 1) 이메일 도메인
         int at = tok.indexOf('@');
         if (at > 0 && tok.substring(0, at).matches("[A-Za-z0-9._%+-]+")) {
@@ -104,6 +122,7 @@ public class Suggest {
             for (String d : domains) out.add(new Item("@" + d, "@" + d, 0, null));
             return out;
         }
+        if (!out.isEmpty() && !tok.matches("[A-Za-z]+")) return out;   // 숫자·기호가 섞이면 이메일만
 
         // 2) 영어 앞글자 (2글자부터)
         if (tok.matches("[A-Za-z]{2,}")) {
@@ -112,7 +131,7 @@ public class Suggest {
             boolean allCap = tok.length() > 1 && tok.equals(tok.toUpperCase());
             List<String> eh = new ArrayList<>();
             for (String w : words) {
-                if (w == null || w.length() <= tok.length() || eh.contains(w)) continue;
+                if (w == null || w.length() <= tok.length() || eh.contains(w) || w.indexOf('@') >= 0) continue;
                 if (w.toLowerCase().startsWith(low) && w.matches("[A-Za-z][A-Za-z '\\-]*")) eh.add(w);
             }
             final Map<String, Integer> u0 = usage;
@@ -122,7 +141,7 @@ public class Suggest {
                 return a.length() - b.length();
             });
             for (String w : eh) {
-                if (out.size() >= MAX) break;
+                if (out.size() >= MAX + 2) break;
                 String shown = allCap ? w.toUpperCase() : cap ? Character.toUpperCase(w.charAt(0)) + w.substring(1) : w;
                 out.add(new Item(shown, shown, tok.length(), w));
             }

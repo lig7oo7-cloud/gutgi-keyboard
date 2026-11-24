@@ -157,7 +157,7 @@ public class GutgiIME extends InputMethodService implements KeyboardView.Listene
             del = Math.max(0, del - comp.length());
         }
         if (del > 0) ic.deleteSurroundingText(del, 0);
-        ic.commitText(item.insert + (item.learnKey != null ? " " : ""), 1);
+        ic.commitText(item.insert + (item.space ? " " : ""), 1);
         ic.endBatchEdit();
         lastWord = null;
         if (item.learnKey != null) {
@@ -170,61 +170,21 @@ public class GutgiIME extends InputMethodService implements KeyboardView.Listene
         scheduleSuggest();
     }
 
-    /** 아재개그 요청을 Gemini로 보냈음을 기록 → 3분 안에 키보드가 다시 뜨면 '기록' 패널을 바로 연다 */
-    public static void markAjaePending(android.content.Context c) {
-        c.getSharedPreferences("gutgi", MODE_PRIVATE).edit()
-                .putLong("ajaeAt", System.currentTimeMillis()).apply();
-    }
-
-    private boolean takeAjaePending() {
-        android.content.SharedPreferences sp = getSharedPreferences("gutgi", MODE_PRIVATE);
-        long at = sp.getLong("ajaeAt", 0);
-        if (at == 0) return false;
-        sp.edit().remove("ajaeAt").apply();
-        return System.currentTimeMillis() - at < 3 * 60 * 1000;
-    }
-
+    /** 키보드를 내리고 삼성 기본 스크린샷 찍기 (접근성 기능 사용) */
     @Override
-    public void sendShotToGeminiApp() {
-        AjaeBus.clear();
-        Intent i = new Intent(this, ShotActivity.class);
-        i.putExtra("sendOnly", true);
-        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_NO_ANIMATION);
-        startActivity(i);
-    }
-
-    @Override
-    public void startAjae() {
+    public void takeScreenshot() {
         commitComposing();
-        if (ShotService.alive && panels != null) {
-            // 화면 공유 세션이 살아 있으면 동의 창 없이 바로 찍는다 (키보드 위쪽까지만)
-            AjaeBus.capturing();
-            panels.openAjae();
-            int[] loc = new int[2];
-            panels.root().getLocationOnScreen(loc);
-            ShotService.callback = f -> new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
-                if (f == null) AjaeBus.failed("화면을 찍지 못했어요. ↻ 다시 눌러 주세요");
-                else AjaeBus.start(this, f);
-            });
-            Intent cap = new Intent(this, ShotService.class)
-                    .setAction(ShotService.ACTION_CAPTURE)
-                    .putExtra("cropBottom", loc[1]);
-            try {
-                startService(cap);
-            } catch (Exception e) {
-                ShotService.callback = null;
-                AjaeBus.clear();
-                launchShotActivity();
-            }
+        if (!ShotAccess.isOn()) {
+            Toast.makeText(this, "처음 한 번: 접근성 › 설치된 앱 › 굿기 키보드 캡처 를 켜 주세요", Toast.LENGTH_LONG).show();
+            Intent i = new Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS);
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            try { startActivity(i); } catch (Exception ignored) { }
             return;
         }
-        launchShotActivity();
-    }
-
-    private void launchShotActivity() {
-        Intent i = new Intent(this, ShotActivity.class);
-        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_NO_ANIMATION);
-        startActivity(i);
+        requestHideSelf(0);                                  // 키보드 내리기
+        ui.postDelayed(() -> {                               // 키보드가 완전히 내려간 뒤 찍기
+            if (!ShotAccess.shoot()) Toast.makeText(this, "캡처하지 못했어요", Toast.LENGTH_SHORT).show();
+        }, 450);
     }
 
     /** 감정 단어 버튼: 방금 넣은 단어가 커서 바로 앞에 그대로 있으면 지우고 새 단어로 교체 */
@@ -270,8 +230,6 @@ public class GutgiIME extends InputMethodService implements KeyboardView.Listene
         shift = 0;
         if (panels != null) {
             panels.reset();
-            if (AjaeBus.shouldShow()) panels.openAjae();
-            else if (takeAjaePending()) panels.openHistory();
         }
         lastWord = null;
         dictCache = null;   // 상용구·내 단어 변경 반영

@@ -2,9 +2,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.VIBRATE" />
-    <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
 
     <queries>
         <package android:name="com.google.android.apps.bard" />
@@ -15,10 +12,6 @@
         <intent>
             <action android:name="android.intent.action.SEND" />
             <data android:mimeType="text/plain" />
-        </intent>
-        <intent>
-            <action android:name="android.intent.action.SEND" />
-            <data android:mimeType="image/*" />
         </intent>
     </queries>
 
@@ -51,22 +44,19 @@
         </service>
 
 
-        <activity
-            android:name=".ShotActivity"
-            android:exported="false"
-            android:excludeFromRecents="true"
-            android:taskAffinity=""
-            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
 
         <service
-            android:name=".ShotService"
-            android:exported="false"
-            android:foregroundServiceType="mediaProjection" />
-
-        <provider
-            android:name=".ShotProvider"
-            android:authorities="com.lig7oo7.gutgi.shots"
-            android:exported="false"
-            android:grantUriPermissions="true" />
+            android:name=".ShotAccess"
+            android:label="굿기 키보드 캡처"
+            android:exported="true"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/shot_access" />
+        </service>
     </application>
 </manifest>

@@ -36,7 +36,6 @@ public class Store {
 
     public static void addClip(Context c, String text) {
         if (text == null || text.trim().isEmpty()) return;
-        if (text.equals(ShotActivity.PROMPT)) return;   // 아재개그 요청문은 기록에 안 남김
         List<String> l = clips(c);
         l.remove(text);
         l.add(0, text);

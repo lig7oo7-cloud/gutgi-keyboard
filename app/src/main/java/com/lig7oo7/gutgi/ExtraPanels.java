@@ -30,8 +30,7 @@ public class ExtraPanels {
         CharSequence selectedText();
         void replaceWord(String word);
         void applySuggestion(Suggest.Item item);
-        void startAjae();
-        void sendShotToGeminiApp();
+        void takeScreenshot();
         void openApp(String extra);
     }
 
@@ -88,11 +87,11 @@ public class ExtraPanels {
             t.setOnClickListener(v -> onTab(idx));
             tabs[i] = t;
         }
-        // 아재개그 답장 (화면 공유 → Gemini)
-        IconView ajae = new IconView(ctx, IconView.AJAE);
-        ajae.setBackground(round(0xFFFFF3C4));
-        ajae.setOnClickListener(v -> host.startAjae());
-        ajae.setOnLongClickListener(v -> { Toast.makeText(ctx, "AI 답장 추천 (화면 공유)", Toast.LENGTH_SHORT).show(); return true; });
+        // 키보드 내리고 캡처
+        IconView ajae = new IconView(ctx, IconView.SHOT);
+        ajae.setBackground(round(CHIP));
+        ajae.setOnClickListener(v -> { showKeyboard(); host.takeScreenshot(); });
+        ajae.setOnLongClickListener(v -> { Toast.makeText(ctx, "키보드 내리고 화면 캡처", Toast.LENGTH_SHORT).show(); return true; });
         LinearLayout.LayoutParams alp = new LinearLayout.LayoutParams(px(40), px(36));
         alp.setMargins(px(2), 0, px(2), 0);
         bar.addView(ajae, alp);
@@ -170,54 +169,6 @@ public class ExtraPanels {
     /** 입력창이 바뀌면 키보드로 돌아오기 */
     public void reset() { showKeyboard(); }
 
-    /** 키보드 안 답장 패널 (딩굴식) */
-    public void openAjae() { showPanel(4, ajaePanel()); }
-
-    private View ajaePanel() {
-        LinearLayout col = column();
-        LinearLayout head = new LinearLayout(ctx);
-        head.setGravity(Gravity.CENTER_VERTICAL);
-        TextView title = new TextView(ctx);
-        title.setText("답장을 골라 주세요");
-        title.setTextSize(16);
-        title.setTypeface(Typeface.DEFAULT_BOLD);
-        title.setTextColor(TEXT);
-        title.setPadding(px(8), px(6), px(8), px(6));
-        head.addView(title, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        TextView again = chip("↻ 다시", 13);
-        again.setBackground(round(0xFFD3D7DC));
-        again.setOnClickListener(v -> { AjaeBus.clear(); showKeyboard(); host.startAjae(); });
-        head.addView(again, new LinearLayout.LayoutParams(px(64), px(32)));
-        TextView close = chip("✕", 16);
-        close.setBackground(null);
-        close.setOnClickListener(v -> { AjaeBus.clear(); showKeyboard(); });
-        head.addView(close, new LinearLayout.LayoutParams(px(44), px(32)));
-        col.addView(head);
-
-        AjaeBus.listener = () -> { if (open == 4) showPanel(4, ajaePanel()); };
-        int st = AjaeBus.state;
-        if (st == AjaeBus.CAPTURING) {
-            col.addView(note("📸 화면 찍는 중…"));
-        }
-        for (String[] rep : AjaeBus.replies) {
-            final String text = rep[1];
-            col.addView(item((rep[0].isEmpty() ? "" : "[" + rep[0] + "] ") + text,
-                    v -> { host.insertText(text); AjaeBus.clear(); showKeyboard(); }, null));
-        }
-        if (st == AjaeBus.LOADING) {
-            col.addView(note(AjaeBus.replies.isEmpty() ? "✍ 답장 만드는 중…" : "더 만드는 중…"));
-        } else if (st == AjaeBus.DONE && AjaeBus.replies.isEmpty()) {
-            col.addView(note("⚠ " + (AjaeBus.error != null ? AjaeBus.error : "답을 받지 못했어요")));
-            if (AjaeBus.keyProblem) {
-                col.addView(buttonRow(new String[]{"API 키 · 모델 설정 열기"}, new View.OnClickListener[]{
-                        v -> { AjaeBus.clear(); host.openApp("aisettings"); }}));
-            }
-        }
-        return scroll(col);
-    }
-
-    /** Gemini에서 복사해 온 답을 바로 고를 수 있게 기록 패널 열기 */
-    public void openHistory() { showPanel(1, clipboardPanel()); }
 
     private int px(float v) { return (int) (v * dp); }
 
@@ -253,7 +204,6 @@ public class ExtraPanels {
 
     private void showKeyboard() {
         open = -1;
-        AjaeBus.listener = null;
         content.removeAllViews();
         content.addView(keyboard);
         for (View t : tabs) t.setBackground(round(CHIP));

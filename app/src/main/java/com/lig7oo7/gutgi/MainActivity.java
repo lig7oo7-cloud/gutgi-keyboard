@@ -108,47 +108,10 @@ public class MainActivity extends Activity {
         });
         box.addView(saveWords);
 
-        TextView aiTitle = new TextView(this);
-        aiTitle.setText("\n💬 AI 답장 추천 (Gemini API)");
-        aiTitle.setTextSize(17);
-        aiTitle.setTextColor(Color.BLACK);
-        box.addView(aiTitle);
-        TextView aiNote = new TextView(this);
-        aiNote.setTextSize(13);
-        aiNote.setTextColor(0xFF607D8B);
-        aiNote.setText("Google AI Studio(aistudio.google.com)에서 발급한 API 키를 붙여넣으세요.\n" +
-                "무료 한도를 넘기지 않으려면 AI Studio에서 결제(유료 등급)를 켜 두세요. 몇 번 쓰는 정도면 요금은 아주 적어요.\n" +
-                "버튼을 눌렀을 때 캡처한 채팅 화면만 전송되고, 키보드 입력 내용은 보내지 않아요.");
-        box.addView(aiNote);
-        final android.content.SharedPreferences sp = AjaeApi.prefs(this);
-        final EditText keyIn = new EditText(this);
-        keyIn.setHint("API 키");
-        keyIn.setSingleLine(true);
-        keyIn.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
-        keyIn.setText(sp.getString("geminiKey", ""));
-        box.addView(keyIn);
-        final EditText modelIn = new EditText(this);
-        modelIn.setHint("모델 (비우면 " + AjaeApi.DEFAULT_MODEL + ")");
-        modelIn.setSingleLine(true);
-        modelIn.setText(sp.getString("geminiModel", ""));
-        box.addView(modelIn);
-        TextView styleLbl = new TextView(this);
-        styleLbl.setText("내 말투 (선택): 예) 짧게, 'ㅇㅇ' 'ㄱㄱ' 자주 씀, 어른께는 존댓말");
-        box.addView(styleLbl);
-        final EditText styleIn = new EditText(this);
-        styleIn.setMinLines(2);
-        styleIn.setText(AjaeApi.style(this));
-        box.addView(styleIn);
-
-        Button saveAi = new Button(this);
-        saveAi.setText("AI 설정 저장");
-        saveAi.setOnClickListener(v -> {
-            sp.edit().putString("geminiKey", keyIn.getText().toString().trim())
-                    .putString("geminiModel", modelIn.getText().toString().trim())
-                    .putString("style", styleIn.getText().toString().trim()).apply();
-            android.widget.Toast.makeText(this, "저장했어요", android.widget.Toast.LENGTH_SHORT).show();
-        });
-        box.addView(saveAi);
+        Button acc = new Button(this);
+        acc.setText("📸 캡처 버튼 켜기 (접근성 › 굿기 키보드 캡처)");
+        acc.setOnClickListener(v -> startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));
+        box.addView(acc);
 
         Button unhide = new Button(this);
         unhide.setText("🎯 상황어: 숨긴 단어 복구 + 배치 초기화 (고정은 유지)");
@@ -170,9 +133,6 @@ public class MainActivity extends Activity {
         final ScrollView sv = new ScrollView(this);
         sv.addView(box);
         setContentView(sv);
-        if (getIntent().getBooleanExtra("aisettings", false)) {
-            sv.post(() -> { sv.smoothScrollTo(0, aiTitle.getTop()); keyIn.requestFocus(); });
-        }
         if (getIntent().getBooleanExtra("phrases", false)) {
             sv.post(() -> { sv.smoothScrollTo(0, phTitle.getTop()); phrases.requestFocus(); });
         }
